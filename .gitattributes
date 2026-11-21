@@ -1,0 +1,13 @@
+﻿# Lineas LF en todas partes: los CSV de reportes deben ser byte a byte
+# identicos en cualquier plataforma (la SPEC lo exige).
+* text=auto
+*.py    text eol=lf
+*.md    text eol=lf
+*.txt   text eol=lf
+*.csv   text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+
+# Binarios
+*.parquet binary
+*.zip    binary
