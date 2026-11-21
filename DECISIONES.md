@@ -1,0 +1,298 @@
+# DECISIONES.md — Pipeline Ecobici (Bronze / Silver / Gold)
+
+Documento de decisiones del proyecto. Cada apartado de la SPEC que no viene
+indicado en el enunciado queda justificado aqui con una linea de razon.
+
+---
+
+## (a) Fase 1: diferencias entre los archivos de cada anio
+
+### Recorridos (viajes)
+
+| Aspecto a revisar | 2016 | 2019 | 2024 |
+|---|---|---|---|
+| Nombre del archivo dentro del ZIP | `recorridos-realizados-2016.csv` | `trips_2019.csv` | `badata_ecobici_recorridos_realizados_2024.csv` |
+| Separador de columnas | `,` (encoding `utf-8-sig`) | `,` (encoding `utf-8-sig`) | `,` (encoding `utf-8-sig`) |
+| Nombres de las columnas | `periodo`, `genero_usuario`, `fecha_origen_recorrido`, `id_estacion_origen`, `nombre_estacion_origen`, `long_estacion_origen`, `lat_estacion_origen`, `domicilio_estacion_origen`, `duracion_recorrido`, `fecha_destino_recorrido`, `id_estacion_destino`, `nombre_estacion_destino`, `long_estacion_destino`, `lat_estacion_destino`, `domicilio_estacion_destino` | `Unnamed: 0`, `Id_recorrido`, `duracion_recorrido`, `fecha_origen_recorrido`, `id_estacion_origen`, `nombre_estacion_origen`, `direccion_estacion_origen`, `long_estacion_origen`, `lat_estacion_origen`, `fecha_destino_recorrido`, `id_estacion_destino`, `nombre_estacion_destino`, `direccion_estacion_destino`, `long_estacion_destino`, `lat_estacion_destino`, `id_usuario`, `modelo_bicicleta`, `género` | `id_recorrido`, `duracion_recorrido`, `fecha_origen_recorrido`, `id_estacion_origen`, `nombre_estacion_origen`, `direccion_estacion_origen`, `long_estacion_origen`, `lat_estacion_origen`, `fecha_destino_recorrido`, `id_estacion_destino`, `nombre_estacion_destino`, `direccion_estacion_destino`, `long_estacion_destino`, `lat_estacion_destino`, `id_usuario`, `modelo_bicicleta`, `genero` |
+| Formato de fecha y hora | `%Y-%m-%d %H:%M:%S` (origen y destino) | `%Y-%m-%d %H:%M:%S` (origen y destino) | `%Y-%m-%d %H:%M:%S` (origen y destino) |
+| ¿Trae duración? ¿En qué unidad? | Si: `duracion_recorrido` como **texto timedelta** (`0 days 00:16:29.000000000`) | Si: `duracion_recorrido` en **segundos** con separador de miles por coma (`2,814` = 2814 s) | Si: `duracion_recorrido` en **segundos** enteros (`568`) |
+| ¿Trae id de usuario? | **No** (solo trae `genero_usuario`) | Si: `id_usuario` (viene con el sufijo `BAEcobici`) | Si: `id_usuario` (en formato float: `992557.0`) |
+| ¿Trae id de viaje? | **No trae ninguna columna de id de viaje** | Si: `Id_recorrido` (con sufijo `BAEcobici`) | Si: `id_recorrido` |
+| Cantidad total de filas | 596.807 | 6.217.004 | 3.559.284 |
+
+### Usuarios
+
+| Aspecto a revisar | 2016 | 2019 | 2024 |
+|---|---|---|---|
+| Nombre del archivo | `usuarios-ecobici-2016.csv` | `usuarios_ecobici_2019.csv` | `usuarios_ecobici_2024.csv` |
+| Separador de columnas | `,` (encoding `utf-8-sig`) | `,` (encoding `utf-8-sig`) | `,` (encoding `utf-8-sig`) |
+| Nombres de las columnas | `id_usuario`, `genero_usuario`, `edad_usuario`, `fecha_alta`, `hora_alta` | `ID_usuario`, `genero_usuario`, `edad_usuario`, `fecha_alta`, `hora_alta` | `id_usuario`, `genero_usuario`, `edad_usuario`, `fecha_alta`, `hora_alta` |
+| Formato de fecha y hora | `fecha_alta` = `%d-%m-%y` (2 digitos de anio) + `hora_alta` = `%I:%M:%S %p` | `fecha_alta` = `%Y-%m-%d` + `hora_alta` = `%H:%M:%S` | `fecha_alta` = `%Y-%m-%d` + `hora_alta` = `%H:%M:%S` |
+| Genero (`value_counts`) | `M`=21.697, `F`=17.784 | `MALE`=41.107, `FEMALE`=24.285, `OTHER`=17.351, vacio=857 | `MALE`=88.655, `FEMALE`=79.310, `OTHER`=29.112 |
+| Edad | min=16, max=88, sin nulos | min=0, max=935, 765 valores no numericos (31 menores de 16 y 15 mayores de 90) | min=4, max=2021, sin nulos (9 menores de 16 y 85 mayores de 90) |
+| Fechas de alta | de 2016-01-01 a 2016-12-31 | de 2019-01-01 a 2019-12-31 (83.600 en 2019) | de 2024-01-01 a 2024-12-31 (197.077 en 2024) |
+| ¿Trae id de usuario? | Si: `id_usuario` | Si: `ID_usuario` (mayusculas) | Si: `id_usuario` |
+| Cantidad total de filas | 39.481 | 83.600 | 197.077 |
+
+Las cantidades de fila de arriba son las que se usan para conciliar en bronze
+(coiniciden exactamente con los conteos de `data/bronze/`).
+
+---
+
+## (b) Mapeos por anio y mapeo de genero
+
+### `MAPEO_VIAJES` (`{anio: {columna_original: columna_canonica}}`)
+
+Lo que no aparece en el mapeo se **descarta** en silver (nunca se renombra ni
+se inventa una columna).
+
+```python
+2016: {   # NO trae id_recorrido ni id_usuario
+    "fecha_origen_recorrido": "fecha_hora_inicio",
+    "fecha_destino_recorrido": "fecha_hora_fin",
+    "duracion_recorrido": "duracion_seg",
+    "id_estacion_origen": "id_estacion_origen",
+    "nombre_estacion_origen": "nombre_estacion_origen",
+    "id_estacion_destino": "id_estacion_destino",
+    "nombre_estacion_destino": "nombre_estacion_destino",
+}
+2019: {
+    "Id_recorrido": "id_viaje",          # mayusculas distintas a 2024
+    "duracion_recorrido": "duracion_seg",
+    "fecha_origen_recorrido": "fecha_hora_inicio",
+    "fecha_destino_recorrido": "fecha_hora_fin",
+    "id_estacion_origen": "id_estacion_origen",
+    "nombre_estacion_origen": "nombre_estacion_origen",
+    "id_estacion_destino": "id_estacion_destino",
+    "nombre_estacion_destino": "nombre_estacion_destino",
+    "id_usuario": "id_usuario",
+    # "Unnamed: 0" NO se mapea: es un indice residual del CSV
+}
+2024: {
+    "id_recorrido": "id_viaje",          # minusculas
+    ... igual que 2019 ...
+}
+```
+
+### `MAPEO_USUARIOS`
+
+```python
+2016: {"id_usuario": "id_usuario", "genero_usuario": "genero",
+       "edad_usuario": "edad", "fecha_alta": "fecha_alta", "hora_alta": "hora_alta"}
+2019: {"ID_usuario": "id_usuario", ...}   # la unica diferencia es "ID_usuario"
+2024: {"id_usuario": "id_usuario", ...}   # identico a 2016
+```
+
+### Configuracion por anio (formatos y unidades)
+
+| Config | 2016 | 2019 | 2024 |
+|---|---|---|---|
+| `FORMATO_FECHA_VIAJES` | `%Y-%m-%d %H:%M:%S` | `%Y-%m-%d %H:%M:%S` | `%Y-%m-%d %H:%M:%S` |
+| `FORMATO_FECHA_USUARIOS` (fecha, hora) | `%d-%m-%y`, `%I:%M:%S %p` | `%Y-%m-%d`, `%H:%M:%S` | `%Y-%m-%d`, `%H:%M:%S` |
+| `CONFIG_DURACION` | `timedelta_texto` | `segundos_separador_miles` | `segundos` |
+| `CONFIG_IDS` | sin particularidades | sufijo `BAEcobici` en todos los id | `id_usuario` en formato float (`.0`) |
+| `CONFIG_LECTURA` (bronze) | sep `,`, `utf-8-sig` | sep `,`, `utf-8-sig` | sep `,`, `utf-8-sig` |
+
+### Mapeo de valores de genero realmente usado (`MAPEO_GENERO`)
+
+Se aplico `strip + mayusculas + sin tildes` antes de mapear. Valores observados
+en los 6 archivos y su destino:
+
+| Valor observado (normalizado) | Aparece en | Resultado |
+|---|---|---|
+| `M` | usuarios 2016 (21.697) | `M` |
+| `F` | usuarios 2016 (17.784) | `F` |
+| `MALE` | usuarios 2019 (41.107) y 2024 (88.655) | `M` |
+| `FEMALE` | usuarios 2019 (24.285) y 2024 (79.310) | `F` |
+| `OTHER` | usuarios 2019 (17.351) y 2024 (29.112) | `OTRO` |
+| `""` (vacio) | usuarios 2019 (857) | `DESCONOCIDO` |
+| cualquier otro / nulo | no observado, por red | `DESCONOCIDO` |
+
+Tambien estan mapeados por si aparecen: `FEMENINO`→`F`, `MASCULINO`→`M`,
+`OTRO`/`X`→`OTRO`.
+
+---
+
+## (c) Decisiones propias (no indicadas en el enunciado)
+
+### Datos e ids
+
+1. **`id_viaje` sintetico en 2016** — 2016 no trae ninguna columna de id de
+   viaje; se crea `2016-<posicion_de_fila_en_el_archivo_original>` (determinista
+   entre ejecuciones) para no tirar 503.252 viajes validos a la basura.
+   *(Decision tomada por el usuario de este repositorio ante la opcion que la
+   SPEC deja como "decision propia".)*
+2. **Motivo extra `ID_VIAJE_NULO`** — la SPEC sugiere agregar un motivo al
+   final si el `id_viaje` es nulo o vacio; queda como regla 6 (la ultima) por
+   si alguna futura fuente trae ids vacios. Con los datos actuales no se
+   dispara (0 filas).
+3. **Regla DUPLICADO global entre anios** — se acumula un `set` de ids vistos
+   entre lotes y entre anios (recomendado por la SPEC), porque `id_viaje` debe
+   ser unico en `silver/viajes`. Se verifico al final leyendo solo la columna
+   `id_viaje` del Parquet: unicos los 10.266.320 ids.
+4. **La regla 5 solo se evalua sobre filas sin motivo previo y con id no nulo**
+   — asi una fila rechazada por fecha invalida no "contamina" el set de ids
+   vistos ni un id nulo se marca DUPLICADO.
+5. **Sufijo `BAEcobici` en los id de 2019** — el CSV trae `5BAEcobici`,
+   `9379BAEcobici`, `6243BAEcobici`, etc. En silver se elimina el sufijo antes
+   de convertir; si no, `pd.to_numeric` dejaria todas las estaciones nulas y el
+   100% de 2019 (6.217.004 filas) iria a cuarentena.
+6. **`id_usuario` float en 2024** — el archivo trae `992557.0`; se quita el
+   `.0` para que cruce con el archivo de usuarios (`992557`).
+7. **`Unnamed: 0` de 2019 se descarta** — es un indice residual del CSV, no un
+   dato; no esta en el mapeo.
+
+### Fechas y duraciones
+
+8. **Duracion 2016 como texto timedelta** — se parsea con `pd.to_timedelta`
+   (fiel a la fuente) en vez de recalcularla, porque el valor del archivo no
+   coincide con `fin - inicio` (ej.: 16m29s en la fuente vs 26m24s de
+   diferencia de fechas).
+9. **Separadores de miles en la duracion** — en 2019 se quitan `.` y `,` solo
+   cuando separan miles (`"1.185"`→1185, `"2,814"`→2814), sin tocar enteros.
+10. **Duracion no parseable -> calculada desde las fechas** — asi la regla
+    `DURACION_MAYOR_24H` nunca ve duraciones nulas.
+11. **`fecha_alta` = fecha + `hora_alta`** con respaldo a solo la fecha si la
+    hora no parsea — el esquema canonico solo tiene `fecha_alta`, pero la hora
+    sirve para desempatar el dedup de usuarios.
+12. **Fechas de viaje en `datetime64[ns]` explicito** — pandas 3 devuelve
+    `datetime64[us]` al parsear; se hace `.astype("datetime64[ns]")` para
+    cumplir el esquema de la SPEC.
+
+### Calidad y cuarentena
+
+13. **Nada se borra**: los rechazados van a `silver/viajes_cuarentena` con
+    `motivo` (y `silver/usuarios_cuarentena` para usuarios), en ese orden de
+    prioridad: `FECHA_INVALIDA`, `ESTACION_NULA`, `FIN_ANTERIOR_A_INICIO`,
+    `DURACION_MAYOR_24H`, `DUPLICADO`, `ID_VIAJE_NULO`.
+14. **Usuarios con `id_usuario` nulo** -> cuarentena con motivo
+    `ID_USUARIO_NULO` (la SPEC pide documentarlo; en estos datos son 0 filas).
+15. **Dedup global de usuarios** — gana el registro con `fecha_alta` mas
+    reciente; empates o `NaT` se resuelven: (1) gana el `anio_fuente` mas
+    reciente, (2) si sigue empando se conserva la primera aparicion en el orden
+    de lectura (2016 → 2019 → 2024). El `NaT` se ordena como 1900-01-01
+    (pierde frente a cualquier fecha real).
+16. **Los descartados por dedup cuentan como cuarentena** (motivo
+    `DUPLICADO_USUARIO`) para que la conciliacion `bronze = silver + cuarentena`
+    cierre exacta en usuarios.
+17. **Edades fuera de 16-90 -> nulo** (no se rechaza el usuario): 2019 deja 811
+    edades nulas y 2024 deja 94 (valores imposibles como 0, 935 o 2021).
+18. **Nombres de estacion**: `strip` + mayusculas + espacios multiples a uno
+    solo (`" Pacifico "` == `"PACIFICO"`); nulos se conservan como nulos.
+
+### Gold
+
+19. **`dim_fecha` en `int64` y claves de dim en `int64`** — las dimensiones no
+    traen nulos, por lo que usan enteros normales (en silver si se usa el
+    `Int64` nullable que pide la SPEC).
+20. **`dim_estacion.nombre_estacion`** se elige con criterio determinista: anio
+    mas reciente primero, y dentro del mismo anio el no nulo; desempate por
+    nombre. `primer_anio`/`ultimo_anio` son min/max de `anio_fuente`.
+21. **Viajes sin usuario en `fact_viajes`** — `id_viaje` de 2016 no trae
+    usuario, por lo que esos viajes quedan con `id_usuario` nulo y aparecen
+    como `DESCONOCIDO` en el reporte 3 (left join). Conteo en el apartado de
+    verificaciones mas abajo.
+22. **`fact_viajes` se escribe por lotes** (dos pasadas sobre
+    `silver/viajes`) para no cargar 10 millones de filas en una maquina con
+    poca RAM; las verificaciones de integridad se hacen lote por lote.
+
+### Reportes
+
+23. **`anio`/`mes` de los reportes se derivan de `dim_fecha`** (via
+    `fecha_key`), tal como permite la SPEC; `fecha_key` ya esta verificado
+    contra `dim_fecha` en gold.
+24. **Desempate del top 10**: a igual cantidad de viajes ordena por nombre de
+    estacion ascendente (determinista). Los nombres nulos usan el rotulo fijo
+    `SIN NOMBRE` para que el orden no dependa de valores faltantes.
+25. **El reporte 5 (`calidad_por_anio`) es solo de viajes** — sus columnas no
+    distinguen tipo de tabla; el estado de usuarios se reporta en este
+    documento y en los logs.
+26. **Formato numerico de los CSV**: punto decimal y sin separador de miles,
+    UTF-8, separador coma y fin de linea `\n`; los floats ya vienen redondeados
+    (1 o 2 decimales) y todas las filas tienen orden fijo, asi que dos
+    ejecuciones dejan archivos byte a byte identicos.
+27. **El reporte 3 redondea el promedio a 1 decimal** y suma viajes sin
+    usuario con `DESCONOCIDO` en ambas dimensiones.
+
+### Ingenieria
+
+28. **`_fecha_ingesta` tiene un unico valor por ejecucion** (no por archivo)
+    para que los 6 archivos de bronze compartan el mismo sello de tiempo.
+29. **Separador/encoding por anio en `CONFIG_LECTURA`** (detectados en la Fase
+    1) con deteccion automatica de respaldo si falta algun valor: asi no hay
+    codigo repetido por archivo.
+30. **Procesamiento por lotes en silver y gold** (row groups de Parquet) y
+    usuarios en memoria completa (320.158 filas): los viajes son 10 millones de
+    filas y la maquina tiene 7.8 GB de RAM.
+31. **Metadata de pandas en el esquema de los Parquet escritos con esquema
+    explicito** — ``pq.ParquetWriter(ruta, <esquema>)`` usa el esquema que
+    recibe en el constructor; si no trae metadata de pandas, ``pd.read_parquet``
+    devuelve ``int64``/``str`` en vez de ``Int64``/``string`` (los dtypes del
+    enunciado) en columnas sin nulos. El esquema se construye con
+    ``_esquema_con_metadata()`` / ``_esquema_fact()`` (metadata generado desde
+    un frame de referencia con los mismos dtypes), de modo que ``silver/viajes``,
+    ``silver/viajes_cuarentena`` y ``gold/fact_viajes`` releen exactamente con
+    el esquema que ``validar_esquema()`` aprobo antes de guardar.
+32. **El pipeline no depende de pasos manuales**: `python main.py` valida
+    `data/raw/`, crea los directorios de salida y ejecuta bronze → silver →
+    gold → reportes; cualquier verificacion que no cierra corta con codigo de
+    salida distinto de 0.
+
+---
+
+## Verificaciones (resultado de las ejecuciones)
+
+### Conciliacion `bronze = silver + cuarentena` por anio (viajes)
+
+| Anio | bronze | silver | cuarentena | cierra |
+|---|---|---|---|---|
+| 2016 | 596.807 | 503.252 | 93.555 | si |
+| 2019 | 6.217.004 | 6.207.851 | 9.153 | si |
+| 2024 | 3.559.284 | 3.555.217 | 4.067 | si |
+| **Total** | **10.373.095** | **10.266.320** | **106.775** | **si** |
+
+### Conciliacion de usuarios
+
+| Anio | bronze | silver | cuarentena (dedup) | cierra |
+|---|---|---|---|---|
+| 2016 | 39.481 | 34.250 | 5.231 | si |
+| 2019 | 83.600 | 83.600 | 0 | si |
+| 2024 | 197.077 | 197.077 | 0 | si |
+| **Total** | **320.158** | **314.927** | **5.231** | **si** |
+
+### Motivos de cuarentena de viajes
+
+| Anio | FECHA_INVALIDA | ESTACION_NULA | FIN_ANTERIOR_A_INICIO | DURACION_MAYOR_24H | DUPLICADO | ID_VIAJE_NULO |
+|---|---|---|---|---|---|---|
+| 2016 | 93.555 | 0 | 0 | 0 | 0 | 0 |
+| 2019 | 0 | 1.760 | 0 | 7.393 | 0 | 0 |
+| 2024 | 3.379 | 0 | 0 | 687 | 1 | 0 |
+
+- 2016: 93.555 filas con `fecha_destino_recorrido` vacia.
+- 2019: 1.760 filas con `id_estacion_destino` vacio y duraciones de hasta 219
+  dias.
+- 2024: 3.379 fechas invalidas, 687 duraciones de mas de 24 h y **1 id de
+  viaje repetido** (la regla global lo detecto).
+- `FIN_ANTERIOR_A_INICIO` e `ID_VIAJE_NULO` no se dispararon con estos datos.
+
+### Otros
+
+- Ejecucion de aceptacion: el pipeline corrio de punta a punta con ``data/``
+  conteniendo **solo ``raw/``** (las capas generadas se habian movido), con
+  codigo de salida 0 y las mismas cantidades de arriba; los 5 CSV quedaron
+  byte a byte identicos a la corrida anterior (mismos SHA-256).
+
+- `id_viaje` unico en `silver/viajes`: **si** (10.266.320 ids distintos).
+- `fact_viajes` == `silver/viajes`: **si** (10.266.320 filas).
+- Integridad referencial con `dim_fecha` y `dim_estacion`: **si**.
+- Viajes sin `id_usuario` en `dim_usuario`: **6.623.887**
+  (503.252 sin `id_usuario` porque 2016 no lo trae; 6.120.635 con `id_usuario` presente pero sin coincidencia en `dim_usuario`: 4.410.500 en 2019 y 1.710.135 en 2024).
+- Top 10 de estaciones por anio: el ranking **cambia entre anios**. 2016 esta
+  encabezado por `009 - PARQUE LAS HERAS`, `002 - RETIRO I` y `014 - PACIFICO`,
+  e incluye dos etiquetas de la fuente que no son estaciones reales:
+  `ERRONEA` (7o, 12.600 viajes) y `KP1808000368` (8o, 12.377 viajes); se
+  conservan porque silver no inventa ni filtra nombres (espejo fiel de la
+  fuente). 2019 y 2024 comparten el par `147 - CONSTITUCION` (#1) y
+  `014 - PACIFICO` (#2), y ambos anios repiten `009 - PARQUE LAS HERAS`,
+  `029 - PARQUE CENTENARIO`, `008 - CONGRESO` y `005 - PLAZA ITALIA` dentro del
+  top 10.

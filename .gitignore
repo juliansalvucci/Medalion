@@ -1,0 +1,14 @@
+# Datos crudos y capas intermedias: se generan localmente, no se entregan
+data/raw/
+data/bronze/
+data/silver/
+data/gold/*
+!data/gold/reportes/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+# Descarga original del dataset (562 MB; ya extraida en data/raw/)
+DatosEcobici.zip
