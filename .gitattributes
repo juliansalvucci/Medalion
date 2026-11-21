@@ -1,4 +1,4 @@
-﻿# Lineas LF en todas partes: los CSV de reportes deben ser byte a byte
+# Lineas LF en todas partes: los CSV de reportes deben ser byte a byte
 # identicos en cualquier plataforma (la SPEC lo exige).
 * text=auto
 *.py    text eol=lf

@@ -81,7 +81,19 @@ def _abrir_fuente(ruta: Path, cfg: dict) -> Iterator:
     """
     if ruta.suffix.lower() == ".zip":
         with zipfile.ZipFile(ruta) as zf:
-            interno = cfg.get("interno") or elegir_csv_interno(zf.namelist())
+            nombres = zf.namelist()
+            interno = cfg.get("interno")
+            if interno is None:
+                interno = elegir_csv_interno(nombres)
+            elif interno not in nombres:
+                # El ZIP no trae el nombre configurado (p. ej. otro nombre al
+                # descargar): se elige el CSV correcto por patron, igual que
+                # hace la deteccion de archivos. Nunca deberia fallar con
+                # KeyError.
+                elegido = elegir_csv_interno(nombres)
+                log.warning("ZIP %s: no esta '%s' (tiene %s); se usa '%s'",
+                            ruta.name, interno, nombres, elegido)
+                interno = elegido
             with zf.open(interno) as crudo:
                 yield crudo
     else:

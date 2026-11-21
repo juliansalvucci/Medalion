@@ -117,11 +117,13 @@ FORMATO_FECHA_USUARIOS: dict[int, tuple[str, str]] = {
 }
 
 # Unidad/representacion de la duracion por anio
-#   timedelta_texto         -> "0 days 00:16:29.000000000"
+#   desde_fechas            -> se ignora la columna y se calcula fin - inicio
+#                              (2016 la trae como texto timedelta, que es otra
+#                              unidad; ver decision 8 de DECISIONES.md)
 #   segundos_separador_miles-> segundos con "." o "," de miles ("1.185" = 1185)
 #   segundos                -> entero simple ("568")
 CONFIG_DURACION: dict[int, str] = {
-    2016: "timedelta_texto",
+    2016: "desde_fechas",
     2019: "segundos_separador_miles",
     2024: "segundos",
 }
@@ -277,7 +279,8 @@ def _quitar_separadores_miles(texto: pd.Series) -> pd.Series:
 def calcular_duracion(df: pd.DataFrame, anio: int) -> pd.Series:
     """Duracion en segundos (``Int64``).
 
-    Si el anio no trae duracion, o no se pudo parsear, se calcula como
+    Si el anio no trae duracion, viene en otra unidad (2016: texto
+    timedelta) o no se pudo parsear, se calcula como
     ``fecha_hora_fin - fecha_hora_inicio``.
     """
     modo = CONFIG_DURACION.get(anio, "desde_fechas")

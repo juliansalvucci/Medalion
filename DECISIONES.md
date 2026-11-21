@@ -48,6 +48,8 @@ se inventa una columna).
 
 ```python
 2016: {   # NO trae id_recorrido ni id_usuario
+          # "duracion_recorrido" se mapea pero NO se usa: la duracion se
+          # calcula desde las fechas (decision 8)
     "fecha_origen_recorrido": "fecha_hora_inicio",
     "fecha_destino_recorrido": "fecha_hora_fin",
     "duracion_recorrido": "duracion_seg",
@@ -66,7 +68,9 @@ se inventa una columna).
     "id_estacion_destino": "id_estacion_destino",
     "nombre_estacion_destino": "nombre_estacion_destino",
     "id_usuario": "id_usuario",
-    # "Unnamed: 0" NO se mapea: es un indice residual del CSV
+    # "Unnamed: 0" NO se mapea: en el archivo el primer campo del header
+    # esta **vacio** (`""`); es quien le pone ese nombre. Es un indice
+    # residual del CSV, no una columna de datos
 }
 2024: {
     "id_recorrido": "id_viaje",          # minusculas
@@ -89,7 +93,7 @@ se inventa una columna).
 |---|---|---|---|
 | `FORMATO_FECHA_VIAJES` | `%Y-%m-%d %H:%M:%S` | `%Y-%m-%d %H:%M:%S` | `%Y-%m-%d %H:%M:%S` |
 | `FORMATO_FECHA_USUARIOS` (fecha, hora) | `%d-%m-%y`, `%I:%M:%S %p` | `%Y-%m-%d`, `%H:%M:%S` | `%Y-%m-%d`, `%H:%M:%S` |
-| `CONFIG_DURACION` | `timedelta_texto` | `segundos_separador_miles` | `segundos` |
+| `CONFIG_DURACION` | `desde_fechas` (la fuente trae texto timedelta, se calcula `fin - inicio`) | `segundos_separador_miles` | `segundos` |
 | `CONFIG_IDS` | sin particularidades | sufijo `BAEcobici` en todos los id | `id_usuario` en formato float (`.0`) |
 | `CONFIG_LECTURA` (bronze) | sep `,`, `utf-8-sig` | sep `,`, `utf-8-sig` | sep `,`, `utf-8-sig` |
 
@@ -144,10 +148,19 @@ Tambien estan mapeados por si aparecen: `FEMENINO`→`F`, `MASCULINO`→`M`,
 
 ### Fechas y duraciones
 
-8. **Duracion 2016 como texto timedelta** — se parsea con `pd.to_timedelta`
-   (fiel a la fuente) en vez de recalcularla, porque el valor del archivo no
-   coincide con `fin - inicio` (ej.: 16m29s en la fuente vs 26m24s de
-   diferencia de fechas).
+8. **Duracion 2016 = `fin - inicio`** — el enunciado pide calcular la
+   duracion cuando el anio no la trae o viene en otra unidad; 2016 la trae
+   como **texto timedelta** (`0 days 00:16:29.000000000`), que es otra
+   unidad, asi que `CONFIG_DURACION[2016] = "desde_fechas"` ignora ese valor
+   y usa `(fecha_hora_fin - fecha_hora_inicio)`. Aviso: el valor de la fuente
+   no coincide con la diferencia de fechas (16m29s en la fuente vs 26m24s de
+   diferencia), por lo que este calculo cambia las duraciones de 2016 respecto
+   de parsear el texto tal cual (lo que era la decision 8 original).
+   Efecto medido: los conteos NO cambian (2016 sigue con 93.555 filas en
+   cuarentena, todas `FECHA_INVALIDA`, y 503.252 validas; ninguna supera las
+   24 h ni termina antes de empezar), pero si cambian los promedios del
+   reporte 3: la fila `DESCONOCIDO,DESCONOCIDO` pasa de 28,3 a 28,6 min, ya
+   que la mayor parte de sus viajes son de 2016 (sin usuario).
 9. **Separadores de miles en la duracion** — en 2019 se quitan `.` y `,` solo
    cuando separan miles (`"1.185"`→1185, `"2,814"`→2814), sin tocar enteros.
 10. **Duracion no parseable -> calculada desde las fechas** — asi la regla
@@ -178,7 +191,12 @@ Tambien estan mapeados por si aparecen: `FEMENINO`→`F`, `MASCULINO`→`M`,
 17. **Edades fuera de 16-90 -> nulo** (no se rechaza el usuario): 2019 deja 811
     edades nulas y 2024 deja 94 (valores imposibles como 0, 935 o 2021).
 18. **Nombres de estacion**: `strip` + mayusculas + espacios multiples a uno
-    solo (`" Pacifico "` == `"PACIFICO"`); nulos se conservan como nulos.
+    solo (`" Pacifico "` == `"PACIFICO"`); nulos se conservan como nulos. No
+    se toca la puntuacion: la fuente trae `131- HOSPITAL DE CLINICAS` sin
+    espacio antes del guion mientras el resto de las estaciones usan
+    `131 - ...`, y esa inconsistencia se conserva tal cual (el id de estacion
+    es la clave, el nombre es solo el rotulo de la fuente del anio mas
+    reciente).
 
 ### Gold
 
@@ -285,8 +303,51 @@ Tambien estan mapeados por si aparecen: `FEMENINO`→`F`, `MASCULINO`→`M`,
 - `id_viaje` unico en `silver/viajes`: **si** (10.266.320 ids distintos).
 - `fact_viajes` == `silver/viajes`: **si** (10.266.320 filas).
 - Integridad referencial con `dim_fecha` y `dim_estacion`: **si**.
-- Viajes sin `id_usuario` en `dim_usuario`: **6.623.887**
-  (503.252 sin `id_usuario` porque 2016 no lo trae; 6.120.635 con `id_usuario` presente pero sin coincidencia en `dim_usuario`: 4.410.500 en 2019 y 1.710.135 en 2024).
+### Viajes sin coincidencia en `dim_usuario` (explicacion obligatoria)
+
+Total: **6.623.887** viajes de `fact_viajes` cuyo `id_usuario` no esta en
+`dim_usuario`, sobre 10.266.320 (64,5 %):
+
+| Origen | Viajes |
+|---|---|
+| 2016: la fuente no trae la columna `id_usuario` | 503.252 |
+| 2019: trae `id_usuario` pero no coincide con ningun usuario | 4.410.500 |
+| 2024: idem | 1.710.135 |
+| **Total** | **6.623.887** |
+
+**Explicacion**: los tres archivos de usuarios son **cortes por anio de
+alta**, no el padron completo. Evidencia de los propios datos
+(`silver/usuarios`):
+
+| Archivo | `fecha_alta` minima | `fecha_alta` maxima | usuarios |
+|---|---|---|---|
+| 2016 | 2016-01-01 | 2016-12-31 | 34.250 |
+| 2019 | 2019-02-16 | 2019-12-31 | 83.600 |
+| 2024 | 2024-01-01 | 2024-12-31 | 197.077 |
+
+- Cada archivo solo contiene altas de su propio anio y **no hay archivo de
+  usuarios para 2017, 2018 ni 2020-2023**: todo usuario dado de alta en esos
+  anios nunca aparece en `dim_usuario`, asi que sus viajes no pueden cruzarse.
+  (Ademas el corte de 2019 arranca recien el 2019-02-16.)
+- Los tres archivos **no comparten un solo `id_usuario` entre si** (0 en
+  comun): el id no se reutiliza entre cortes, por lo que estar en el corte de
+  2016 no garantiza aparecer en el de 2019.
+- Por eso el cruce solo puede pegar con los cortes disponibles:
+  - **2019**: 1.797.351 de 6.207.851 viajes cruzan (**29 %**); de 420.187 ids
+    distintos en los viajes, 91.674 (21,8 %) estan en los cortes de 2016 y
+    2019.
+  - **2024**: 1.845.082 de 3.555.217 (**51,9 %**); de 262.505 ids distintos,
+    164.801 (62,8 %) estan en los tres cortes.
+
+**Impacto en el reporte 3**: la fila `DESCONOCIDO,DESCONOCIDO` suma 6.650.991
+viajes = **64,78 %** del total, formada por:
+- 6.623.887 viajes sin usuario en `dim_usuario` (desglose de arriba);
+- 27.104 viajes de usuarios **si** encontrados pero con `edad` nulada (fuera
+  de 16-90) y `genero` `DESCONOCIDO`.
+
+La fila `DESCONOCIDO,<genero>` agrega 438 viajes mas (edad nulada, genero
+conocido), con lo que hay **6.651.429** viajes con `rango_etario`
+`DESCONOCIDO` en total.
 - Top 10 de estaciones por anio: el ranking **cambia entre anios**. 2016 esta
   encabezado por `009 - PARQUE LAS HERAS`, `002 - RETIRO I` y `014 - PACIFICO`,
   e incluye dos etiquetas de la fuente que no son estaciones reales:
@@ -296,3 +357,12 @@ Tambien estan mapeados por si aparecen: `FEMENINO`→`F`, `MASCULINO`→`M`,
   `014 - PACIFICO` (#2), y ambos anios repiten `009 - PARQUE LAS HERAS`,
   `029 - PARQUE CENTENARIO`, `008 - CONGRESO` y `005 - PLAZA ITALIA` dentro del
   top 10.
+- **Problema de calidad (marcado, no corregido)**: `ERRONEA` (7o en 2016) y
+  `KP1808000368` (8o en 2016) **no son estaciones reales**; son etiquetas de
+  error de la fuente y un analista las daria de baja o las agruparia bajo un
+  rotulo unico. Se mantienen en el reporte porque: (1) los motivos de
+  cuarentena estan fijados por el enunciado y agregar
+  `ESTACION_INVALIDA` romperia el conjunto de motivos aceptado y la
+  conciliacion; (2) el reporte 2 se arma desde gold **sin logica de limpieza**.
+  Si el docente pide excluirlos es un filtro de una linea en
+  `reportes.py`; queda anotado como pendiente.

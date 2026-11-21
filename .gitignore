@@ -12,3 +12,6 @@ __pycache__/
 venv/
 # Descarga original del dataset (562 MB; ya extraida en data/raw/)
 DatosEcobici.zip
+
+# Enunciado/spec del ejercicio: material de trabajo, no es entregable
+SPEC.md
