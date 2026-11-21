@@ -30,7 +30,7 @@ indicado en el enunciado queda justificado aqui con una linea de razon.
 | Formato de fecha y hora | `fecha_alta` = `%d-%m-%y` (2 digitos de anio) + `hora_alta` = `%I:%M:%S %p` | `fecha_alta` = `%Y-%m-%d` + `hora_alta` = `%H:%M:%S` | `fecha_alta` = `%Y-%m-%d` + `hora_alta` = `%H:%M:%S` |
 | Genero (`value_counts`) | `M`=21.697, `F`=17.784 | `MALE`=41.107, `FEMALE`=24.285, `OTHER`=17.351, vacio=857 | `MALE`=88.655, `FEMALE`=79.310, `OTHER`=29.112 |
 | Edad | min=16, max=88, sin nulos | min=0, max=935, 765 valores no numericos (31 menores de 16 y 15 mayores de 90) | min=4, max=2021, sin nulos (9 menores de 16 y 85 mayores de 90) |
-| Fechas de alta | de 2016-01-01 a 2016-12-31 | de 2019-01-01 a 2019-12-31 (83.600 en 2019) | de 2024-01-01 a 2024-12-31 (197.077 en 2024) |
+| Fechas de alta | de 2016-01-01 a 2016-12-31 | de 2019-02-16 a 2019-12-31 (83.600 en 2019; el corte de altas arranca en febrero) | de 2024-01-01 a 2024-12-31 (197.077 en 2024) |
 | ¿Trae id de usuario? | Si: `id_usuario` | Si: `ID_usuario` (mayusculas) | Si: `id_usuario` |
 | Cantidad total de filas | 39.481 | 83.600 | 197.077 |
 
@@ -69,8 +69,8 @@ se inventa una columna).
     "nombre_estacion_destino": "nombre_estacion_destino",
     "id_usuario": "id_usuario",
     # "Unnamed: 0" NO se mapea: en el archivo el primer campo del header
-    # esta **vacio** (`""`); es quien le pone ese nombre. Es un indice
-    # residual del CSV, no una columna de datos
+    # esta **vacio** (`""`) y es **pandas** quien le pone ese nombre. Es un
+    # indice residual del CSV, no una columna de datos
 }
 2024: {
     "id_recorrido": "id_viaje",          # minusculas
@@ -364,5 +364,9 @@ conocido), con lo que hay **6.651.429** viajes con `rango_etario`
   cuarentena estan fijados por el enunciado y agregar
   `ESTACION_INVALIDA` romperia el conjunto de motivos aceptado y la
   conciliacion; (2) el reporte 2 se arma desde gold **sin logica de limpieza**.
-  Si el docente pide excluirlos es un filtro de una linea en
-  `reportes.py`; queda anotado como pendiente.
+  El argumento de "los motivos estan fijados" es debil: el pipeline ya
+  agrego dos motivos propios (`ID_VIAJE_NULO`, que el enunciado si autoriza,
+  y `DUPLICADO_USUARIO`). Por eso queda **pendiente de consulta al docente
+  antes de entregar**: si manda excluirlos o ponerlos en cuarentena, hay que
+  definir si la regla mira origen, destino o ambos (24.977 viajes inician en
+  esas dos etiquetas en 2016) y eso cambiaria los conteos y el reporte 2.

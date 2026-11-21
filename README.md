@@ -47,7 +47,7 @@ Notas:
   `usuario`), asi que `recorridos-realizados-2019.zip` o `trips-2019.zip` se
   detectan igual.
 - Los recorridos se entregan como **ZIP** (el CSV vive dentro del ZIP; el
-  código usa `zipfile` para elegir el CSV correcto si el ZIP trae varios o si
+  codigo usa `zipfile` para elegir el CSV correcto si el ZIP trae varios o si
   el nombre interno no es el esperado: nunca falla por nombre).
 - Los usuarios van en **CSV** (no XLSX).
 - Si falta algun archivo, `python main.py` se detiene con un mensaje claro
@@ -154,7 +154,7 @@ iniciar) y Python 3.11:
 | reportes | ~8 s | 5 CSV |
 | **Total** | **~356 s (6 min)** | |
 
-(Entre corridas oscilo entre 356 y 392 s según el uso de la maquina.)
+(Entre corridas osciló entre 356 y 392 s según el uso de la maquina.)
 
 - **Volumen**: 10.373.095 viajes y 320.158 usuarios en bruto; silver deja
   10.266.320 viajes y 314.927 usuarios validos.
