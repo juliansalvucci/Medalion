@@ -275,8 +275,12 @@ Tambien estan mapeados por si aparecen: `FEMENINO`→`F`, `MASCULINO`→`M`,
     `ultimo_anio` sigue en 2019, porque la estacion aparece ese anio aunque
     su etiqueta quede en nulo. Si un id solo trajera etiquetas de error
     quedaria sin nombre (el reporte 2 lo mostraria como `SIN NOMBRE`); en los
-    datos reales no ocurre: solo los ids 1 y 10 traen estas etiquetas y
-    ambos tienen nombre en 2016.
+    datos reales no ocurre. Verificado con `value_counts` sobre los nombres de
+    bronze (origen + destino): **2016 y 2024 tienen 0 ocurrencias** de estas
+    etiquetas y **2019 solo las trae en los ids 1 y 10** (`ERRONEA` 2.451 y
+    `KP1808000368` 19.885, 22.336 en total), sin ningun otro nombre con forma
+    de marca de error (busqueda `ERRON` / `KP` + digitos). Los dos ids
+    ademas tienen nombre real en 2016.
 
 ---
 
@@ -375,7 +379,8 @@ conocido), con lo que hay **6.651.429** viajes con `rango_etario`
   y en las posiciones 7 y 8 trae `FACULTAD DE DERECHO` (12.600 viajes) y
   `PUERTO MADERO - UCA` (12.377): son los ids 1 y 10, que en el archivo de
   2019 venian etiquetados `ERRONEA` y `KP1808000368`; esas etiquetas se
-  anulan en silver (decision 33) y gold elige el nombre no nulo mas reciente. 2019 y 2024 comparten el par `147 - CONSTITUCION` (#1) y
+  anulan en silver (decision 33) y gold elige el nombre no nulo mas
+  reciente. 2019 y 2024 comparten el par `147 - CONSTITUCION` (#1) y
   `014 - PACIFICO` (#2), y ambos anios repiten `009 - PARQUE LAS HERAS`,
   `029 - PARQUE CENTENARIO`, `008 - CONGRESO` y `005 - PLAZA ITALIA` dentro del
   top 10.
