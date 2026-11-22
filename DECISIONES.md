@@ -255,6 +255,22 @@ Tambien estan mapeados por si aparecen: `FEMENINO`→`F`, `MASCULINO`→`M`,
     `data/raw/`, crea los directorios de salida y ejecuta bronze → silver →
     gold → reportes; cualquier verificacion que no cierra corta con codigo de
     salida distinto de 0.
+33. **Las etiquetas de error no pisan un nombre real en `dim_estacion`**: la
+    SPEC pide el nombre del **anio mas reciente**, pero el archivo de 2019
+    trae `ERRONEA` para el id 1 y `KP1808000368` para el id 10 (un marcador de
+    error literal y un codigo interno; ninguno de los dos identifica un
+    lugar). Esas dos etiquetas estan en `ETIQUETAS_ERROR` (`src/gold.py`) y se
+    ignoran al elegir el nombre **solo si el id tiene un nombre real en otro
+    anio**: el id 1 queda como `FACULTAD DE DERECHO` (12.600 viajes en 2016,
+    direccion *Av. Figueroa Alcorta y Juan A. Bibiloni*) y el id 10 como
+    `PUERTO MADERO - UCA` (12.377 viajes, *Moreau de Justo 1500*). Si para un
+    id todas las etiquetas fueran de error se conserva la mas reciente, para
+    no dejar la estacion sin rotulo. Cambia **2 filas** de `dim_estacion` y
+    las posiciones 7 y 8 del top 10 de 2016 (mismo conteo, otro nombre);
+    `ultimo_anio` sigue en 2019, porque la estacion aparece ese anio y solo
+    se ignora su etiqueta. **No** se agrega un motivo de cuarentena: los
+    viajes son reales, lo que estaba mal era el rotulo de la fuente, y el
+    reporte 2 sigue armandose desde gold sin logica de limpieza.
 
 ---
 
@@ -350,23 +366,21 @@ conocido), con lo que hay **6.651.429** viajes con `rango_etario`
 `DESCONOCIDO` en total.
 - Top 10 de estaciones por anio: el ranking **cambia entre anios**. 2016 esta
   encabezado por `009 - PARQUE LAS HERAS`, `002 - RETIRO I` y `014 - PACIFICO`,
-  e incluye dos etiquetas de la fuente que no son estaciones reales:
-  `ERRONEA` (7o, 12.600 viajes) y `KP1808000368` (8o, 12.377 viajes); se
-  conservan porque silver no inventa ni filtra nombres (espejo fiel de la
-  fuente). 2019 y 2024 comparten el par `147 - CONSTITUCION` (#1) y
+  y en las posiciones 7 y 8 trae `FACULTAD DE DERECHO` (12.600 viajes) y
+  `PUERTO MADERO - UCA` (12.377): son los ids 1 y 10, que en el archivo de
+  2019 venian etiquetados `ERRONEA` y `KP1808000368` (se resuelve en la
+  decision 33). 2019 y 2024 comparten el par `147 - CONSTITUCION` (#1) y
   `014 - PACIFICO` (#2), y ambos anios repiten `009 - PARQUE LAS HERAS`,
   `029 - PARQUE CENTENARIO`, `008 - CONGRESO` y `005 - PLAZA ITALIA` dentro del
   top 10.
-- **Problema de calidad (marcado, no corregido)**: `ERRONEA` (7o en 2016) y
-  `KP1808000368` (8o en 2016) **no son estaciones reales**; son etiquetas de
-  error de la fuente y un analista las daria de baja o las agruparia bajo un
-  rotulo unico. Se mantienen en el reporte porque: (1) los motivos de
-  cuarentena estan fijados por el enunciado y agregar
-  `ESTACION_INVALIDA` romperia el conjunto de motivos aceptado y la
-  conciliacion; (2) el reporte 2 se arma desde gold **sin logica de limpieza**.
-  El argumento de "los motivos estan fijados" es debil: el pipeline ya
-  agrego dos motivos propios (`ID_VIAJE_NULO`, que el enunciado si autoriza,
-  y `DUPLICADO_USUARIO`). Por eso queda **pendiente de consulta al docente
-  antes de entregar**: si manda excluirlos o ponerlos en cuarentena, hay que
-  definir si la regla mira origen, destino o ambos (24.977 viajes inician en
-  esas dos etiquetas en 2016) y eso cambiaria los conteos y el reporte 2.
+- **Limitacion: `id_estacion` no es estable entre anios.** El mismo id puede
+  corresponder a otra estacion fisica en otro archivo y, al reves, la misma
+  estacion puede aparecer con dos ids: la Facultad de Derecho es el **id 1**
+  en 2016 (12.600 viajes) y el **id 202** en 2024 (30.922), y los ids 1 y 10
+  no existen en 2024. El prefijo numerico del nombre tampoco coincide siempre
+  con el id (id 513 = `308 - SAN MARTIN II`). Solapamiento de ids entre
+  archivos: 2016 y 2019 comparten 93, 2016 y 2024 solo 67, y 2019 y 2024 281.
+  Se conserva el modelo de la SPEC (una fila por `id_estacion`, con el nombre
+  del anio mas reciente) porque ese id es la clave que trae la fuente:
+  fusionar estaciones fisicas exigiria cruzar por nombre o coordenadas y
+  cambiaria el grain de `fact_viajes`, algo que el enunciado no pide.
