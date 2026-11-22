@@ -248,10 +248,27 @@ def normalizar_id(serie: pd.Series, anio: int) -> pd.Series:
     return serie.str.strip()
 
 
+# Etiquetas que el archivo de 2019 usa en lugar del nombre de la estacion y
+# que NO identifican un lugar: "ERRONEA" es un marcador de error literal y
+# "KP1808000368" es un codigo interno (prefijo KP + digitos). Aparecen solo
+# para los ids 1 y 10, que en 2016 traen el nombre real (FACULTAD DE DERECHO
+# y PUERTO MADERO - UCA). Se convierten en nulo aqui, junto con el resto de
+# la normalizacion de nombres de silver: la limpieza vive en silver, nunca en
+# gold. Como construir_dim_estacion toma el primer nombre no nulo del anio
+# mas reciente, un marcador de error jamas pisa el nombre real de otro anio
+# (decision 33 de DECISIONES.md).
+ETIQUETAS_ERROR: set[str] = {"ERRONEA", "KP1808000368"}
+
+
 def normalizar_nombre(serie: pd.Series) -> pd.Series:
-    """strip + mayusculas + espacios multiples -> uno solo. Nulos quedan nulos."""
+    """strip + mayusculas + espacios multiples -> uno solo. Nulos quedan nulos.
+
+    Las etiquetas de error de la fuente (:data:`ETIQUETAS_ERROR`) quedan en
+    nulo: no son nombres de estacion.
+    """
     limpio = serie.astype("string").str.strip().str.replace(r"\s+", " ", regex=True).str.upper()
-    return limpio.replace("", pd.NA)
+    limpio = limpio.replace("", pd.NA)
+    return limpio.where(~limpio.isin(ETIQUETAS_ERROR))
 
 
 def _sin_tildes(texto: str) -> str:

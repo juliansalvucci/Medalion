@@ -196,7 +196,8 @@ Tambien estan mapeados por si aparecen: `FEMENINO`→`F`, `MASCULINO`→`M`,
     espacio antes del guion mientras el resto de las estaciones usan
     `131 - ...`, y esa inconsistencia se conserva tal cual (el id de estacion
     es la clave, el nombre es solo el rotulo de la fuente del anio mas
-    reciente).
+    reciente). Las etiquetas de error de la fuente (`ETIQUETAS_ERROR`) pasan a
+    nulo en esta misma normalizacion (decision 33).
 
 ### Gold
 
@@ -255,22 +256,27 @@ Tambien estan mapeados por si aparecen: `FEMENINO`→`F`, `MASCULINO`→`M`,
     `data/raw/`, crea los directorios de salida y ejecuta bronze → silver →
     gold → reportes; cualquier verificacion que no cierra corta con codigo de
     salida distinto de 0.
-33. **Las etiquetas de error no pisan un nombre real en `dim_estacion`**: la
-    SPEC pide el nombre del **anio mas reciente**, pero el archivo de 2019
-    trae `ERRONEA` para el id 1 y `KP1808000368` para el id 10 (un marcador de
-    error literal y un codigo interno; ninguno de los dos identifica un
-    lugar). Esas dos etiquetas estan en `ETIQUETAS_ERROR` (`src/gold.py`) y se
-    ignoran al elegir el nombre **solo si el id tiene un nombre real en otro
-    anio**: el id 1 queda como `FACULTAD DE DERECHO` (12.600 viajes en 2016,
+33. **Las etiquetas de error de la fuente se anulan en silver**: la SPEC
+    pide que `dim_estacion.nombre_estacion` sea el nombre del **anio mas
+    reciente**, pero el archivo de 2019 trae `ERRONEA` para el id 1 y
+    `KP1808000368` para el id 10 (un marcador de error literal y un codigo
+    interno; ninguno de los dos identifica un lugar). La limpieza se hace en
+    **silver**, que es donde vive el resto de la normalizacion, y **no** en
+    gold: `normalizar_nombre` deja esas dos etiquetas en **nulo**
+    (`ETIQUETAS_ERROR` en `src/silver.py`), junto con el strip, las
+    mayusculas y los espacios. Como `construir_dim_estacion` (gold, sin
+    logica de limpieza) toma el **primer nombre no nulo** del anio mas
+    reciente, el id 1 queda como `FACULTAD DE DERECHO` (12.600 viajes en 2016,
     direccion *Av. Figueroa Alcorta y Juan A. Bibiloni*) y el id 10 como
-    `PUERTO MADERO - UCA` (12.377 viajes, *Moreau de Justo 1500*). Si para un
-    id todas las etiquetas fueran de error se conserva la mas reciente, para
-    no dejar la estacion sin rotulo. Cambia **2 filas** de `dim_estacion` y
-    las posiciones 7 y 8 del top 10 de 2016 (mismo conteo, otro nombre);
-    `ultimo_anio` sigue en 2019, porque la estacion aparece ese anio y solo
-    se ignora su etiqueta. **No** se agrega un motivo de cuarentena: los
-    viajes son reales, lo que estaba mal era el rotulo de la fuente, y el
-    reporte 2 sigue armandose desde gold sin logica de limpieza.
+    `PUERTO MADERO - UCA` (12.377 viajes, *Moreau de Justo 1500*), y ninguna
+    otra estacion cambia. No genera filas en cuarentena (el motivo
+    `ESTACION_NULA` mira los ids de estacion, no los nombres) ni altera
+    ningun conteo: solo se pierde un rotulo que no era un nombre.
+    `ultimo_anio` sigue en 2019, porque la estacion aparece ese anio aunque
+    su etiqueta quede en nulo. Si un id solo trajera etiquetas de error
+    quedaria sin nombre (el reporte 2 lo mostraria como `SIN NOMBRE`); en los
+    datos reales no ocurre: solo los ids 1 y 10 traen estas etiquetas y
+    ambos tienen nombre en 2016.
 
 ---
 
@@ -368,8 +374,8 @@ conocido), con lo que hay **6.651.429** viajes con `rango_etario`
   encabezado por `009 - PARQUE LAS HERAS`, `002 - RETIRO I` y `014 - PACIFICO`,
   y en las posiciones 7 y 8 trae `FACULTAD DE DERECHO` (12.600 viajes) y
   `PUERTO MADERO - UCA` (12.377): son los ids 1 y 10, que en el archivo de
-  2019 venian etiquetados `ERRONEA` y `KP1808000368` (se resuelve en la
-  decision 33). 2019 y 2024 comparten el par `147 - CONSTITUCION` (#1) y
+  2019 venian etiquetados `ERRONEA` y `KP1808000368`; esas etiquetas se
+  anulan en silver (decision 33) y gold elige el nombre no nulo mas reciente. 2019 y 2024 comparten el par `147 - CONSTITUCION` (#1) y
   `014 - PACIFICO` (#2), y ambos anios repiten `009 - PARQUE LAS HERAS`,
   `029 - PARQUE CENTENARIO`, `008 - CONGRESO` y `005 - PLAZA ITALIA` dentro del
   top 10.

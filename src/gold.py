@@ -105,37 +105,19 @@ def construir_dim_fecha(desde: pd.Timestamp, hasta: pd.Timestamp) -> pd.DataFram
     return dim[["fecha_key", "fecha", "anio", "mes", "dia", "dia_semana", "es_fin_de_semana"]]
 
 
-# Etiquetas que el archivo de 2019 usa en lugar del nombre de la estacion y
-# que NO identifican un lugar: "ERRONEA" es un marcador de error literal y
-# "KP1808000368" es un codigo interno (prefijo KP + digitos). Aparecen solo
-# para los ids 1 y 10, que en 2016 traen el nombre real (FACULTAD DE DERECHO
-# y PUERTO MADERO - UCA). Se ignoran al elegir el nombre de la dimension
-# SOLO si el id tiene un nombre real en otro anio (ver decision 33 de
-# DECISIONES.md).
-ETIQUETAS_ERROR: set[str] = {"ERRONEA", "KP1808000368"}
-
-
 def construir_dim_estacion(pares: set[tuple]) -> pd.DataFrame:
     """Una fila por estacion (origen + destino).
 
     ``nombre_estacion`` es el nombre normalizado del **anio mas reciente** en
     que aparece (si ese anio no trae nombre, se usa el mas reciente disponible).
-    Las etiquetas de error de la fuente (:data:`ETIQUETAS_ERROR`) nunca pisan
-    un nombre real de otro anio: si el anio mas reciente solo trae una de esas
-    etiquetas, se usa el nombre del anio mas reciente que tenga nombre valido.
     """
     if not pares:
         raise VerificacionError("No se encontraron estaciones en silver/viajes")
     df = pd.DataFrame(sorted(pares, key=lambda t: (t[0], -t[2], str(t[1]))),
                       columns=["id_estacion", "nombre_estacion", "anio_fuente"])
-    # Orden: primero las etiquetas utilizables (nombre real, no marcador de
-    # error y no nulo), despues el anio mas reciente y por ultimo orden
-    # alfabetico: asi un marcador de error jamas gana sobre un nombre real y
-    # la seleccion sigue siendo determinista.
-    df["_usable"] = (df["nombre_estacion"].notna()
-                     & ~df["nombre_estacion"].isin(ETIQUETAS_ERROR))
-    df = df.sort_values(["id_estacion", "_usable", "anio_fuente", "nombre_estacion"],
-                        ascending=[True, False, False, True], kind="mergesort")
+    df["_sin_nombre"] = df["nombre_estacion"].isna()
+    df = df.sort_values(["id_estacion", "anio_fuente", "_sin_nombre", "nombre_estacion"],
+                        ascending=[True, False, True, True], kind="mergesort")
     dim = (df.groupby("id_estacion", sort=True)
              .agg(nombre_estacion=("nombre_estacion", "first"),
                   primer_anio=("anio_fuente", "min"),
