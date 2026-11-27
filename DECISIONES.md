@@ -148,19 +148,35 @@ Tambien estan mapeados por si aparecen: `FEMENINO`→`F`, `MASCULINO`→`M`,
 
 ### Fechas y duraciones
 
-8. **Duracion 2016 = `fin - inicio`** — el enunciado pide calcular la
-   duracion cuando el anio no la trae o viene en otra unidad; 2016 la trae
-   como **texto timedelta** (`0 days 00:16:29.000000000`), que es otra
-   unidad, asi que `CONFIG_DURACION[2016] = "desde_fechas"` ignora ese valor
-   y usa `(fecha_hora_fin - fecha_hora_inicio)`. Aviso: el valor de la fuente
-   no coincide con la diferencia de fechas (16m29s en la fuente vs 26m24s de
-   diferencia), por lo que este calculo cambia las duraciones de 2016 respecto
-   de parsear el texto tal cual (lo que era la decision 8 original).
-   Efecto medido: los conteos NO cambian (2016 sigue con 93.555 filas en
-   cuarentena, todas `FECHA_INVALIDA`, y 503.252 validas; ninguna supera las
-   24 h ni termina antes de empezar), pero si cambian los promedios del
-   reporte 3: la fila `DESCONOCIDO,DESCONOCIDO` pasa de 28,3 a 28,6 min, ya
-   que la mayor parte de sus viajes son de 2016 (sin usuario).
+8. **Duracion 2016 = `fin - inicio`** — el enunciado (Tarea 3, Paso 3) pide
+   calcular la duracion cuando el anio no la trae o viene en "otra unidad";
+   2016 la trae como **texto timedelta** (`0 days 00:16:29.000000000`), que
+   es otra representacion, asi que `CONFIG_DURACION[2016] = "desde_fechas"`
+   ignora ese valor y usa `(fecha_hora_fin - fecha_hora_inicio)`.
+   **Por que no parsear el texto: en 2016 la columna no mide lo mismo que las
+   fechas** (medido sobre los 503.252 viajes de 2016 con destino informado):
+   - correlacion entre `duracion_recorrido` y `fin - inicio`: **0,0024**
+     (Spearman 0,0037); solo el **0,35 %** de los viajes coincide dentro de
+     ±5 s y el **8,64 %** dentro de ±10 %;
+   - las diferencias van de **-10.149 a +10.171 s** (mediana +195 s, desvio
+     2.228 s): no es un error de unidad, porque eso daria un **factor fijo**
+     (el ratio `fin - inicio` / fuente recorre de 0,06 a 17,6);
+   - control en los otros anios: en **2019 y 2024 la columna coincide
+     exactamente** con `fin - inicio` (correlacion 1,0000; 100 % dentro de
+     ±5 s), o sea que la regla del enunciado reproduce la propia columna de
+     la fuente en esos anios;
+   - las dos columnas estan acotadas al mismo rango (p0 = 10,00 min y
+     p100 = 180 min en ambas): los valores parecen duraciones reales de la
+     misma poblacion, pero **no estan emparejados con las fechas de su fila**.
+   Efecto medido: los conteos NO cambian con ninguna de las dos lecturas
+   (2016 sigue con 93.555 filas en cuarentena, todas `FECHA_INVALIDA`, y
+   503.252 validas; ningun viaje supera las 24 h ni termina antes de
+   empezar), pero si cambian los promedios del reporte 3: la fila
+   `DESCONOCIDO,DESCONOCIDO` pasa de 28,3 a 28,6 min, ya que la mayor parte
+   de sus viajes son de 2016 (sin usuario). Usar la columna de la fuente
+   dejaria la duracion de 2016 inconsistente con las fechas que aplican las
+   reglas de calidad, y lo dejaria ademas en contra de 2019/2024, donde la
+   columna es igual a `fin - inicio`.
 9. **Separadores de miles en la duracion** — en 2019 se quitan `.` y `,` solo
    cuando separan miles (`"1.185"`→1185, `"2,814"`→2814), sin tocar enteros.
 10. **Duracion no parseable -> calculada desde las fechas** — asi la regla
