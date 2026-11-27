@@ -172,8 +172,12 @@ Tambien estan mapeados por si aparecen: `FEMENINO`→`F`, `MASCULINO`→`M`,
    (2016 sigue con 93.555 filas en cuarentena, todas `FECHA_INVALIDA`, y
    503.252 validas; ningun viaje supera las 24 h ni termina antes de
    empezar), pero si cambian los promedios del reporte 3: la fila
-   `DESCONOCIDO,DESCONOCIDO` pasa de 28,3 a 28,6 min, ya que la mayor parte
-   de sus viajes son de 2016 (sin usuario). Usar la columna de la fuente
+   `DESCONOCIDO,DESCONOCIDO` pasa de 28,3 a 28,6 min, porque **una parte**
+   de sus viajes es de 2016: 503.252 de 6.650.991 (7,6 %), todos sin
+   usuario. La duracion promedio de 2016 sube 3,23 min al calcularla desde
+   las fechas (35,88 -> 39,11 min), y ese 7,6 % mueve el promedio de la fila
+   0,076 x 3,23 = 0,24 min, que redondeado a un decimal da el 28,3 -> 28,6
+   observado. Usar la columna de la fuente
    dejaria la duracion de 2016 inconsistente con las fechas que aplican las
    reglas de calidad, y lo dejaria ademas en contra de 2019/2024, donde la
    columna es igual a `fin - inicio`.
