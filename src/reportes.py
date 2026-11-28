@@ -22,13 +22,9 @@ import numpy as np
 import pandas as pd
 
 from src.bronze import contar_filas_bronze
-from src.config import GOLD, REPORTES, SILVER
+from src.config import VerificacionError, GOLD, REPORTES, SILVER
 
 log = logging.getLogger("reportes")
-
-
-class VerificacionError(RuntimeError):
-    """Se lanza cuando un reporte no puede construirse o no cierra."""
 
 
 def _guardar_csv(df: pd.DataFrame, nombre: str) -> Path:

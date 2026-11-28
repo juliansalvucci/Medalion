@@ -12,6 +12,8 @@ Requisitos cumplidos:
 
 from __future__ import annotations
 
+import csv
+import io
 import logging
 import zipfile
 from contextlib import contextmanager
@@ -32,6 +34,7 @@ from src.config import (
     COL_FECHA_INGESTA,
     RAW,
     TIPOS,
+    VerificacionError,
     detectar_archivos,
 )
 
@@ -155,6 +158,48 @@ def _a_tabla_todo_string(chunk: pd.DataFrame) -> pa.Table:
     return pa.Table.from_pydict(valores)
 
 
+def contar_filas_origen(ruta: Path, cfg: dict) -> tuple[list[str], int]:
+    """Columnas y cantidad de registros del CSV de origen, con ``csv.reader``.
+
+    Camino independiente de pandas: respeta los saltos de linea entre
+    comillas y descarta las lineas vacias (pandas tambien las saltea por
+    defecto). Se usa para verificar bronze contra el origen (Tarea 2).
+    """
+    with _abrir_fuente(ruta, cfg) as fh:
+        texto = io.TextIOWrapper(fh, encoding=cfg["encoding"], newline="")
+        lector = csv.reader(texto, delimiter=cfg["sep"])
+        encabezado = next(lector)
+        total = sum(1 for fila in lector if fila)
+    return encabezado, total
+
+
+def verificar_bronze(ruta: Path, cfg: dict, destino: Path, escritas: int) -> None:
+    """Verifica el Parquet de bronze contra el archivo de origen (Tarea 2).
+
+    Comprueba tres cosas: (1) filas de origen = escritas = filas del
+    Parquet, (2) columnas = las del origen + las tres de metadatos, en ese
+    orden, y (3) que todos los campos sean ``string``. Ante cualquier
+    diferencia lanza :class:`VerificacionError` con los tres conteos.
+    """
+    columnas_origen, esperado = contar_filas_origen(ruta, cfg)
+    # El CSV de 2019 trae la primera columna sin nombre; pandas la nombra
+    # "Unnamed: 0" (ver DECISIONES.md). Se aplica la misma regla aqui para
+    # comparar nombre contra nombre sin relajar la verificacion.
+    columnas_origen = [c if c else f"Unnamed: {i}" for i, c in enumerate(columnas_origen)]
+    archivo = pq.ParquetFile(destino)
+    en_parquet = archivo.metadata.num_rows
+    if not (escritas == en_parquet == esperado):
+        raise VerificacionError(
+            f"{ruta.name}: origen={esperado}, escritas={escritas}, parquet={en_parquet}")
+    esquema = archivo.schema_arrow
+    esperadas = columnas_origen + [COL_ARCHIVO_ORIGEN, COL_FECHA_INGESTA, COL_ANIO]
+    if esquema.names != esperadas:
+        raise VerificacionError(
+            f"{ruta.name}: columnas de bronze distintas de las del origen + metadatos")
+    if any(not pa.types.is_string(t) for t in esquema.types):
+        raise VerificacionError(f"{ruta.name}: hay columnas que no son string")
+
+
 def ingestar_archivo(ruta: Path, anio: int, destino: Path, fecha_ingesta: str | None = None) -> int:
     """Lee un archivo crudo en chunks y escribe un unico ``data.parquet``.
 
@@ -196,6 +241,9 @@ def ingestar_archivo(ruta: Path, anio: int, destino: Path, fecha_ingesta: str | 
     if writer is None:
         raise RuntimeError(f"No se pudo leer ninguna fila de {ruta} (¿archivo vacío?)")
     writer.close()
+
+    # Verificacion contra el origen: filas, columnas y tipos (Tarea 2).
+    verificar_bronze(ruta, cfg, destino, escritas)
 
     log.info("Bronze %s %d: %s -> %s (%d filas)", tipo, anio, ruta.name, destino, escritas)
     return escritas

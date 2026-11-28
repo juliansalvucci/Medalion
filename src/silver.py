@@ -27,16 +27,12 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from src.bronze import contar_filas_bronze
-from src.config import ANIOS, BRONZE, COL_ANIO, SILVER
+from src.config import VerificacionError, ANIOS, BRONZE, COL_ANIO, SILVER
 
 log = logging.getLogger("silver")
 
 # Filas por lote al recorrer bronze (los archivos son enormes)
 LOTE = 250_000
-
-
-class VerificacionError(RuntimeError):
-    """Se lanza cuando una verificacion de silver no se cumple."""
 
 
 # ---------------------------------------------------------------------------

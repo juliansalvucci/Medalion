@@ -45,6 +45,14 @@ class ArchivoFaltante(RuntimeError):
     """Se lanza cuando falta un archivo de data/raw/ que el usuario debe descargar."""
 
 
+class VerificacionError(RuntimeError):
+    """Se lanza cuando una verificacion del pipeline no se cumple.
+
+    Vive en config para que bronze pueda usarla sin importar silver (silver
+    importa de bronze: la definicion local crearia un ciclo).
+    """
+
+
 def _normalizar(texto: str) -> str:
     """Minusculas y sin guiones/espacios, para comparar nombres de archivo."""
     return re.sub(r"[\s_\-]+", "", texto.lower())

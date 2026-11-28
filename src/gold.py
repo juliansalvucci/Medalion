@@ -29,7 +29,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from src.config import GOLD, SILVER
+from src.config import VerificacionError, GOLD, SILVER
 
 log = logging.getLogger("gold")
 
@@ -59,10 +59,6 @@ _COLUMNAS_VIAJES = (
     "id_estacion_origen", "nombre_estacion_origen",
     "id_estacion_destino", "nombre_estacion_destino", "id_usuario", "anio_fuente",
 )
-
-
-class VerificacionError(RuntimeError):
-    """Se lanza cuando una verificacion de gold no se cumple."""
 
 
 # ---------------------------------------------------------------------------
