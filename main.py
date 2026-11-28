@@ -73,7 +73,11 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         preparar_directorios()
-        validar_materias_primas()
+        # data/raw/ solo hace falta para bronze: las capas posteriores leen
+        # de las capas que ya existen, asi que --desde silver|gold|reportes
+        # no la valida (C-05).
+        if args.desde == "bronze":
+            validar_materias_primas()
         resultados = ejecutar(args.desde)
     except ArchivoFaltante as exc:
         log.error("%s", exc)

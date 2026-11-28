@@ -1,2 +1,7 @@
-pandas>=2.0
-pyarrow>=14.0
+# Versiones probadas (pip freeze del entorno donde corrio el pipeline):
+# Python 3.11.3, pandas 3.1.1, pyarrow 26.0.1, numpy 2.4.6.
+# Rango acotado a la version mayor probada; numpy se importa directo en
+# silver.py, gold.py y reportes.py.
+pandas>=3.1,<4
+pyarrow>=26,<27
+numpy>=2.4,<3

@@ -16,7 +16,9 @@ tres capas de una arquitectura medallion:
 ## 1. Requisitos
 
 - **Python 3.11 o superior** (probado con Python 3.11.3).
-- Dependencias: `pandas` y `pyarrow`.
+- Dependencias: `pandas`, `pyarrow` y `numpy`, con los rangos de
+  `requirements.txt`, probadas con **pandas 3.1.1, pyarrow 26.0.1 y numpy
+  2.4.6** (las versiones reales del entorno donde corrio el pipeline).
 
 ```bash
 python -m venv .venv
@@ -26,7 +28,8 @@ pip install -r requirements.txt
 
 En Linux/macOS: `source .venv/bin/activate`.
 
-No se usa Spark, Polars ni DuckDB: el pipeline corre solo con pandas + pyarrow.
+No se usa Spark, Polars ni DuckDB: el pipeline corre solo con pandas + pyarrow
+(+ numpy, que usan esas librerias por debajo y se importa directo en el codigo).
 
 ---
 
@@ -82,10 +85,13 @@ anterior (nunca hace append). Correr dos veces deja los mismos conteos y los
 mismos CSV **byte a byte**.
 
 La Fase 1 (exploracion) es un script auxiliar que no forma parte del
-pipeline:
+pipeline. Se ejecuta desde la raiz del repo con `python -m src.exploracion`
+(no `python src/exploracion.py`, que falla con `ModuleNotFoundError` porque
+el script importa `from src.config import ...`):
 
 ```bash
-python src/exploracion.py
+python -m src.exploracion              # imprime las dos tablas markdown
+python -m src.exploracion informe.md   # guarda el informe en un archivo
 ```
 
 ---
