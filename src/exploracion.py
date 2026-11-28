@@ -13,7 +13,6 @@ y rangos de edad para los archivos de usuarios.
 
 from __future__ import annotations
 
-import io
 import zipfile
 from collections import Counter
 from datetime import datetime
@@ -21,7 +20,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.config import ANIOS, CHUNKSIZE, NROWS, RAW, detectar_archivos
+from src.config import ANIOS, CHUNKSIZE, NROWS, detectar_archivos
 
 # Formatos de fecha/hora candidatos, en orden de preferencia
 FORMATOS_CANDIDATOS = (
@@ -36,6 +35,10 @@ FORMATOS_CANDIDATOS = (
     "%d-%m-%Y %H:%M:%S",
     "%m/%d/%Y %H:%M:%S",
     "%Y-%m-%d",
+    # Detectan fecha_alta y hora_alta de usuarios (C-04)
+    "%d-%m-%y",
+    "%I:%M:%S %p",
+    "%H:%M:%S",
 )
 
 SEPARADORES = (",", ";", "\t", "|")
@@ -147,8 +150,15 @@ def detectar_duracion(cols: list[str], muestra: pd.DataFrame) -> tuple[str | Non
 
 
 def detectar_id_usuario(cols: list[str]) -> str | None:
+    """Devuelve la columna de id de usuario solo si el nombre lo dice.
+
+    Antes cualquier columna con "usuario" valia (p. ej. ``genero_usuario`` en
+    los recorridos 2016) y el informe contradecia DECISIONES.md. Ahora el
+    nombre debe ser exactamente ``id_usuario``/``ID_usuario``/``user_id``
+    (sin separadores, en minusculas) para que cuente como id.
+    """
     for c in cols:
-        if any(k in c.lower() for k in ("usuario", "user", "id_usuario")):
+        if c.lower().replace("_", "") in ("idusuario", "userid"):
             return c
     return None
 
@@ -300,7 +310,7 @@ def explorar_usuarios(ruta: Path) -> dict:
 # ---------------------------------------------------------------------------
 # Reporte
 # ---------------------------------------------------------------------------
-def _tabla_md(titulo: str, filas: list[tuple[str, dict]], campo: str) -> str:
+def _tabla_md(titulo: str, filas: list[tuple[str, dict]]) -> str:
     """Imprime una tabla markdown con una fila por anio para un campo dado."""
     anios = ", ".join(str(a) for a in ANIOS)
     lineas = [f"### {titulo}", "", f"| Aspecto a revisar | {anios} |", "|---" * (len(ANIOS) + 1) + "|"]
@@ -349,9 +359,9 @@ def generar_informe() -> str:
         }))
 
     return (
-        _tabla_md("Recorridos (viajes)", filas_rec, "recorridos")
+        _tabla_md("Recorridos (viajes)", filas_rec)
         + "\n\n"
-        + _tabla_md("Usuarios", filas_usu, "usuarios")
+        + _tabla_md("Usuarios", filas_usu)
     )
 
 
