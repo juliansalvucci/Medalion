@@ -126,7 +126,9 @@ CONFIG_DURACION: dict[int, str] = {
 
 # Raros de formato en los id por anio (ver DECISIONES.md)
 CONFIG_IDS: dict[int, dict] = {
-    # En 2019 TODOS los id vienen con el sufijo "BAEcobici" adjunto
+    # En 2019 los id de recorridos vienen con el sufijo "BAEcobici" adjunto
+    # (usuarios 2019 no lo trae: ver decision 5 de DECISIONES.md); el strip
+    # es inocuo en cualquier columna que no lo tenga.
     2019: {"sufijo": "BAEcobici"},
     # En 2024 el id_usuario viene en formato float ("992557.0")
     2024: {"usuario_float": True},
@@ -410,8 +412,8 @@ def _bool(serie: pd.Series) -> pd.Series:
 class ControlDuplicados:
     """Ids de viaje vistos entre lotes y entre anios (regla DUPLICADO global).
 
-    Se usa un set de ids acumulado entre anios, tal como recomienda la SPEC
-    cuando el volumen no permite cargar todo en memoria.
+    Se usa un set de ids acumulado entre anios para garantizar la unicidad
+    de `id_viaje` entre anos sin cargar todo en memoria.
     """
 
     def __init__(self) -> None:
@@ -496,7 +498,7 @@ def deduplicar_usuarios(validos: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFra
     """Dedup **global** por ``id_usuario``: gana la ``fecha_alta`` mas reciente.
 
     Empates (o fechas NaT) se resuelven de forma estable y documentada:
-    1) gana el ``anio_fuente`` mas reciente; 2) si sigue empando, se conserva
+    1) gana el ``anio_fuente`` mas reciente; 2) si sigue empatando, se conserva
     la primera aparicion en el orden de lectura (2016 -> 2019 -> 2024).
     Los descartados van a cuarentena con motivo ``DUPLICADO_USUARIO``.
     """

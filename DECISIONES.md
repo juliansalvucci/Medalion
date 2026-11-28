@@ -1,7 +1,7 @@
 # DECISIONES.md — Pipeline Ecobici (Bronze / Silver / Gold)
 
-Documento de decisiones del proyecto. Cada apartado de la SPEC que no viene
-indicado en el enunciado queda justificado aqui con una linea de razon.
+Documento de decisiones del proyecto. Cada punto que el enunciado no viene
+indicando queda justificado aqui con una linea de razon.
 
 ---
 
@@ -31,11 +31,11 @@ indicado en el enunciado queda justificado aqui con una linea de razon.
 | Genero (`value_counts`) | `M`=21.697, `F`=17.784 | `MALE`=41.107, `FEMALE`=24.285, `OTHER`=17.351, vacio=857 | `MALE`=88.655, `FEMALE`=79.310, `OTHER`=29.112 |
 | Edad | min=16, max=88, sin nulos | min=0, max=935, 765 valores no numericos (31 menores de 16 y 15 mayores de 90) | min=4, max=2021, sin nulos (9 menores de 16 y 85 mayores de 90) |
 | Fechas de alta | de 2016-01-01 a 2016-12-31 | de 2019-02-16 a 2019-12-31 (83.600 en 2019; el corte de altas arranca en febrero) | de 2024-01-01 a 2024-12-31 (197.077 en 2024) |
-| ¿Trae id de usuario? | Si: `id_usuario` | Si: `ID_usuario` (mayusculas) | Si: `id_usuario` |
+| ¿Trae id de usuario? | Si: `id_usuario` | Si: `ID_usuario` (mayusculas, **sin** sufijo `BAEcobici`) | Si: `id_usuario` |
 | Cantidad total de filas | 39.481 | 83.600 | 197.077 |
 
 Las cantidades de fila de arriba son las que se usan para conciliar en bronze
-(coiniciden exactamente con los conteos de `data/bronze/`).
+(coinciden exactamente con los conteos de `data/bronze/`).
 
 ---
 
@@ -94,7 +94,7 @@ se inventa una columna).
 | `FORMATO_FECHA_VIAJES` | `%Y-%m-%d %H:%M:%S` | `%Y-%m-%d %H:%M:%S` | `%Y-%m-%d %H:%M:%S` |
 | `FORMATO_FECHA_USUARIOS` (fecha, hora) | `%d-%m-%y`, `%I:%M:%S %p` | `%Y-%m-%d`, `%H:%M:%S` | `%Y-%m-%d`, `%H:%M:%S` |
 | `CONFIG_DURACION` | `desde_fechas` (la fuente trae texto timedelta, se calcula `fin - inicio`) | `segundos_separador_miles` | `segundos` |
-| `CONFIG_IDS` | sin particularidades | sufijo `BAEcobici` en todos los id | `id_usuario` en formato float (`.0`) |
+| `CONFIG_IDS` | sin particularidades | sufijo `BAEcobici` en los id de recorridos (ver decisión 5); usuarios 2019 sin sufijo | `id_usuario` en formato float (`.0`) |
 | `CONFIG_LECTURA` (bronze) | sep `,`, `utf-8-sig` | sep `,`, `utf-8-sig` | sep `,`, `utf-8-sig` |
 
 ### Mapeo de valores de genero realmente usado (`MAPEO_GENERO`)
@@ -124,23 +124,31 @@ Tambien estan mapeados por si aparecen: `FEMENINO`→`F`, `MASCULINO`→`M`,
 1. **`id_viaje` sintetico en 2016** — 2016 no trae ninguna columna de id de
    viaje; se crea `2016-<posicion_de_fila_en_el_archivo_original>` (determinista
    entre ejecuciones) para no tirar 503.252 viajes validos a la basura.
-   *(Decision tomada por el usuario de este repositorio ante la opcion que la
-   SPEC deja como "decision propia".)*
-2. **Motivo extra `ID_VIAJE_NULO`** — la SPEC sugiere agregar un motivo al
-   final si el `id_viaje` es nulo o vacio; queda como regla 6 (la ultima) por
-   si alguna futura fuente trae ids vacios. Con los datos actuales no se
-   dispara (0 filas).
+   *(Decisión propia: el enunciado no indica qué hacer con viajes sin id y
+   descartarlos perdería 503.252 viajes válidos.)*
+2. **Motivo extra `ID_VIAJE_NULO`** — decisión propia: el enunciado fija
+   cinco motivos; agrego un sexto, al final, para `id_viaje` nulo o vacío,
+   por si alguna futura fuente trae ids vacíos. Queda como regla 6 (la
+   última). Con los datos actuales no se dispara (0 filas).
 3. **Regla DUPLICADO global entre anios** — se acumula un `set` de ids vistos
-   entre lotes y entre anios (recomendado por la SPEC), porque `id_viaje` debe
-   ser unico en `silver/viajes`. Se verifico al final leyendo solo la columna
-   `id_viaje` del Parquet: unicos los 10.266.320 ids.
+   entre lotes y entre anios (decisión propia; el enunciado solo exige que
+   `id_viaje` sea único en `silver/viajes`), porque debe serlo. Se verifico
+   al final leyendo solo la columna `id_viaje` del Parquet: unicos los
+   10.266.320 ids.
 4. **La regla 5 solo se evalua sobre filas sin motivo previo y con id no nulo**
    — asi una fila rechazada por fecha invalida no "contamina" el set de ids
    vistos ni un id nulo se marca DUPLICADO.
-5. **Sufijo `BAEcobici` en los id de 2019** — el CSV trae `5BAEcobici`,
-   `9379BAEcobici`, `6243BAEcobici`, etc. En silver se elimina el sufijo antes
-   de convertir; si no, `pd.to_numeric` dejaria todas las estaciones nulas y el
-   100% de 2019 (6.217.004 filas) iria a cuarentena.
+5. **Sufijo `BAEcobici` en los id de recorridos de 2019** — el CSV trae
+   `5BAEcobici`, `9379BAEcobici`, `6243BAEcobici`, etc. En silver se elimina
+   el sufijo antes de convertir; si no, `pd.to_numeric` dejaria todas las
+   estaciones nulas y el 100% de 2019 (6.217.004 filas) iria a cuarentena.
+   **Qué columnas lo traen** (medido con `str.contains("BAEcobici")` sobre
+   bronze): en recorridos 2019, `Id_recorrido` 100 %, `id_estacion_origen`
+   100 %, `id_usuario` 100 % e `id_estacion_destino` 99,97 % — las 1.760
+   filas sin sufijo son ids **vacíos**, que no lo llevan—; en **usuarios 2019
+   `ID_usuario` no lo trae (0 %)**; en 2016 y 2024, 0 ocurrencias. Por eso
+   la config de 2019 aplica el strip a las columnas de id de recorridos y no
+   hace falta tocar usuarios.
 6. **`id_usuario` float en 2024** — el archivo trae `992557.0`; se quita el
    `.0` para que cruce con el archivo de usuarios (`992557`).
 7. **`Unnamed: 0` de 2019 se descarta** — es un indice residual del CSV, no un
@@ -149,38 +157,16 @@ Tambien estan mapeados por si aparecen: `FEMENINO`→`F`, `MASCULINO`→`M`,
 ### Fechas y duraciones
 
 8. **Duracion 2016 = `fin - inicio`** — el enunciado (Tarea 3, Paso 3) pide
-   calcular la duracion cuando el anio no la trae o viene en "otra unidad";
-   2016 la trae como **texto timedelta** (`0 days 00:16:29.000000000`), que
-   es otra representacion, asi que `CONFIG_DURACION[2016] = "desde_fechas"`
-   ignora ese valor y usa `(fecha_hora_fin - fecha_hora_inicio)`.
-   **Por que no parsear el texto: en 2016 la columna no mide lo mismo que las
-   fechas** (medido sobre los 503.252 viajes de 2016 con destino informado):
-   - correlacion entre `duracion_recorrido` y `fin - inicio`: **0,0024**
-     (Spearman 0,0037); solo el **0,35 %** de los viajes coincide dentro de
-     ±5 s y el **8,64 %** dentro de ±10 %;
-   - las diferencias van de **-10.149 a +10.171 s** (mediana +195 s, desvio
-     2.228 s): no es un error de unidad, porque eso daria un **factor fijo**
-     (el ratio `fin - inicio` / fuente recorre de 0,06 a 17,6);
-   - control en los otros anios: en **2019 y 2024 la columna coincide
-     exactamente** con `fin - inicio` (correlacion 1,0000; 100 % dentro de
-     ±5 s), o sea que la regla del enunciado reproduce la propia columna de
-     la fuente en esos anios;
-   - las dos columnas estan acotadas al mismo rango (p0 = 10,00 min y
-     p100 = 180 min en ambas): los valores parecen duraciones reales de la
-     misma poblacion, pero **no estan emparejados con las fechas de su fila**.
-   Efecto medido: los conteos NO cambian con ninguna de las dos lecturas
-   (2016 sigue con 93.555 filas en cuarentena, todas `FECHA_INVALIDA`, y
-   503.252 validas; ningun viaje supera las 24 h ni termina antes de
-   empezar), pero si cambian los promedios del reporte 3: la fila
-   `DESCONOCIDO,DESCONOCIDO` pasa de 28,3 a 28,6 min, porque **una parte**
-   de sus viajes es de 2016: 503.252 de 6.650.991 (7,6 %), todos sin
-   usuario. La duracion promedio de 2016 sube 3,23 min al calcularla desde
-   las fechas (35,88 -> 39,11 min), y ese 7,6 % mueve el promedio de la fila
-   0,076 x 3,23 = 0,24 min, que redondeado a un decimal da el 28,3 -> 28,6
-   observado. Usar la columna de la fuente
-   dejaria la duracion de 2016 inconsistente con las fechas que aplican las
-   reglas de calidad, y lo dejaria ademas en contra de 2019/2024, donde la
-   columna es igual a `fin - inicio`.
+   calcular la duración cuando el año no la trae o viene en «otra unidad»;
+   2016 la trae como **texto timedelta** (`0 days 00:16:29.000000000`), otra
+   representación, así que `CONFIG_DURACION[2016] = "desde_fechas"` ignora
+   ese valor y usa `(fecha_hora_fin - fecha_hora_inicio)`. **Por qué**: en
+   2016 la columna de la fuente no está emparejada con las fechas de su fila
+   (correlación 0,0024; en 2019 y 2024 la columna es exactamente
+   `fin - inicio`), y usarla dejaría la duración inconsistente con las fechas
+   que aplican las reglas de calidad. Los conteos no cambian con ninguna de
+   las dos lecturas; solo se mueve una fila del reporte 3. Medición completa,
+   control por año y efecto en el reporte 3: **Anexo A.1**.
 9. **Separadores de miles en la duracion** — en 2019 se quitan `.` y `,` solo
    cuando separan miles (`"1.185"`→1185, `"2,814"`→2814), sin tocar enteros.
 10. **Duracion no parseable -> calculada desde las fechas** — asi la regla
@@ -190,7 +176,7 @@ Tambien estan mapeados por si aparecen: `FEMENINO`→`F`, `MASCULINO`→`M`,
     sirve para desempatar el dedup de usuarios.
 12. **Fechas de viaje en `datetime64[ns]` explicito** — pandas 3 devuelve
     `datetime64[us]` al parsear; se hace `.astype("datetime64[ns]")` para
-    cumplir el esquema de la SPEC.
+    cumplir el esquema canónico del enunciado.
 
 ### Calidad y cuarentena
 
@@ -199,10 +185,11 @@ Tambien estan mapeados por si aparecen: `FEMENINO`→`F`, `MASCULINO`→`M`,
     prioridad: `FECHA_INVALIDA`, `ESTACION_NULA`, `FIN_ANTERIOR_A_INICIO`,
     `DURACION_MAYOR_24H`, `DUPLICADO`, `ID_VIAJE_NULO`.
 14. **Usuarios con `id_usuario` nulo** -> cuarentena con motivo
-    `ID_USUARIO_NULO` (la SPEC pide documentarlo; en estos datos son 0 filas).
+    `ID_USUARIO_NULO` (decisión propia, no indicada en el enunciado; en estos
+    datos son 0 filas).
 15. **Dedup global de usuarios** — gana el registro con `fecha_alta` mas
     reciente; empates o `NaT` se resuelven: (1) gana el `anio_fuente` mas
-    reciente, (2) si sigue empando se conserva la primera aparicion en el orden
+    reciente, (2) si sigue empatando se conserva la primera aparicion en el orden
     de lectura (2016 → 2019 → 2024). El `NaT` se ordena como 1900-01-01
     (pierde frente a cualquier fecha real).
 16. **Los descartados por dedup cuentan como cuarentena** (motivo
@@ -223,7 +210,7 @@ Tambien estan mapeados por si aparecen: `FEMENINO`→`F`, `MASCULINO`→`M`,
 
 19. **`dim_fecha` en `int64` y claves de dim en `int64`** — las dimensiones no
     traen nulos, por lo que usan enteros normales (en silver si se usa el
-    `Int64` nullable que pide la SPEC).
+    `Int64` nullable que pide el enunciado).
 20. **`dim_estacion.nombre_estacion`** se elige con criterio determinista: anio
     mas reciente primero, y dentro del mismo anio el no nulo; desempate por
     nombre. `primer_anio`/`ultimo_anio` son min/max de `anio_fuente`.
@@ -231,6 +218,13 @@ Tambien estan mapeados por si aparecen: `FEMENINO`→`F`, `MASCULINO`→`M`,
     usuario, por lo que esos viajes quedan con `id_usuario` nulo y aparecen
     como `DESCONOCIDO` en el reporte 3 (left join). Conteo en el apartado de
     verificaciones mas abajo.
+    **Género**: el `genero` del reporte 3 sale de `dim_usuario`, no de los
+    archivos de recorridos. `silver/viajes` no tiene columna de género (el
+    esquema canónico no la incluye), así que `genero_usuario`, que el archivo
+    de recorridos 2016 sí trae por viaje, se descarta al seleccionar
+    `ESQUEMA_VIAJES`. Por eso los viajes de 2016 caen en `DESCONOCIDO` en las
+    dos dimensiones del reporte 3: no traen `id_usuario` (arriba) y su género
+    descartado no participa en el cruce.
 22. **`fact_viajes` se escribe por lotes** (dos pasadas sobre
     `silver/viajes`) para no cargar 10 millones de filas en una maquina con
     poca RAM; las verificaciones de integridad se hacen lote por lote.
@@ -238,8 +232,14 @@ Tambien estan mapeados por si aparecen: `FEMENINO`→`F`, `MASCULINO`→`M`,
 ### Reportes
 
 23. **`anio`/`mes` de los reportes se derivan de `dim_fecha`** (via
-    `fecha_key`), tal como permite la SPEC; `fecha_key` ya esta verificado
-    contra `dim_fecha` en gold.
+    `fecha_key`), decisión propia: el enunciado no incluye `anio` en
+    `fact_viajes`; `fecha_key` ya esta verificado contra `dim_fecha` en gold.
+    **Criterio de «año» entre reportes**: los reportes 1, 2 y 4 agrupan por
+    el año de la **fecha de inicio** del viaje (derivado de `dim_fecha`) y el
+    reporte 5 por `anio_fuente` (año del archivo de origen). En estos datos
+    **coinciden** en los tres años: el `total_viajes` del reporte 4 es igual
+    al `filas_silver` del reporte 5 (503.252 / 6.207.851 / 3.555.217), porque
+    ningún archivo trae viajes que empiecen en otro año.
 24. **Desempate del top 10**: a igual cantidad de viajes ordena por nombre de
     estacion ascendente (determinista). Los nombres nulos usan el rotulo fijo
     `SIN NOMBRE` para que el orden no dependa de valores faltantes.
@@ -276,31 +276,18 @@ Tambien estan mapeados por si aparecen: `FEMENINO`→`F`, `MASCULINO`→`M`,
     `data/raw/`, crea los directorios de salida y ejecuta bronze → silver →
     gold → reportes; cualquier verificacion que no cierra corta con codigo de
     salida distinto de 0.
-33. **Las etiquetas de error de la fuente se anulan en silver**: la SPEC
-    pide que `dim_estacion.nombre_estacion` sea el nombre del **anio mas
-    reciente**, pero el archivo de 2019 trae `ERRONEA` para el id 1 y
-    `KP1808000368` para el id 10 (un marcador de error literal y un codigo
-    interno; ninguno de los dos identifica un lugar). La limpieza se hace en
-    **silver**, que es donde vive el resto de la normalizacion, y **no** en
-    gold: `normalizar_nombre` deja esas dos etiquetas en **nulo**
-    (`ETIQUETAS_ERROR` en `src/silver.py`), junto con el strip, las
-    mayusculas y los espacios. Como `construir_dim_estacion` (gold, sin
-    logica de limpieza) toma el **primer nombre no nulo** del anio mas
-    reciente, el id 1 queda como `FACULTAD DE DERECHO` (12.600 viajes en 2016,
-    direccion *Av. Figueroa Alcorta y Juan A. Bibiloni*) y el id 10 como
-    `PUERTO MADERO - UCA` (12.377 viajes, *Moreau de Justo 1500*), y ninguna
-    otra estacion cambia. No genera filas en cuarentena (el motivo
-    `ESTACION_NULA` mira los ids de estacion, no los nombres) ni altera
-    ningun conteo: solo se pierde un rotulo que no era un nombre.
-    `ultimo_anio` sigue en 2019, porque la estacion aparece ese anio aunque
-    su etiqueta quede en nulo. Si un id solo trajera etiquetas de error
-    quedaria sin nombre (el reporte 2 lo mostraria como `SIN NOMBRE`); en los
-    datos reales no ocurre. Verificado con `value_counts` sobre los nombres de
-    bronze (origen + destino): **2016 y 2024 tienen 0 ocurrencias** de estas
-    etiquetas y **2019 solo las trae en los ids 1 y 10** (`ERRONEA` 2.451 y
-    `KP1808000368` 19.885, 22.336 en total), sin ningun otro nombre con forma
-    de marca de error (busqueda `ERRON` / `KP` + digitos). Los dos ids
-    ademas tienen nombre real en 2016.
+33. **Las etiquetas de error de la fuente se anulan en silver**: el
+    enunciado pide que `dim_estacion.nombre_estacion` sea el nombre del
+    **año más reciente**, pero el archivo de 2019 trae `ERRONEA` (id 1) y
+    `KP1808000368` (id 10), un marcador de error y un código interno que no
+    identifican un lugar. `normalizar_nombre` (`ETIQUETAS_ERROR` en
+    `src/silver.py`) las deja en **nulo**, junto con el resto de la
+    normalización de silver; `construir_dim_estacion` (gold, sin lógica de
+    limpieza) toma el **primer nombre no nulo** del año más reciente, así que
+    los ids 1 y 10 quedan con su nombre real de 2016 (`FACULTAD DE DERECHO` y
+    `PUERTO MADERO - UCA`). No genera cuarentena ni altera ningún conteo:
+    `ESTACION_NULA` mira ids, no nombres. Verificación con `value_counts` y
+    efectos detallados: **Anexo A.2**.
 
 ---
 
@@ -323,6 +310,13 @@ Tambien estan mapeados por si aparecen: `FEMENINO`→`F`, `MASCULINO`→`M`,
 | 2019 | 83.600 | 83.600 | 0 | si |
 | 2024 | 197.077 | 197.077 | 0 | si |
 | **Total** | **320.158** | **314.927** | **5.231** | **si** |
+
+Causa de los 5.231 descartados (medido sobre bronze): son **0 duplicados
+dentro del propio archivo de 2016** y **5.231 ids de 2016 que reaparecen en
+2019** (0 en 2024). El dedup global de la decisión 15 conserva el registro
+con `fecha_alta` más reciente, que en esos casos es el de 2019, y descarta
+la copia de 2016; por eso la cuarentena `DUPLICADO_USUARIO` es exclusiva de
+2016 y el total de silver usuarios (314.927) suma los 83.600 de 2019.
 
 ### Motivos de cuarentena de viajes
 
@@ -406,12 +400,74 @@ conocido), con lo que hay **6.651.429** viajes con `rango_etario`
   top 10.
 - **Limitacion: `id_estacion` no es estable entre anios.** El mismo id puede
   corresponder a otra estacion fisica en otro archivo y, al reves, la misma
-  estacion puede aparecer con dos ids: la Facultad de Derecho es el **id 1**
-  en 2016 (12.600 viajes) y el **id 202** en 2024 (30.922), y los ids 1 y 10
-  no existen en 2024. El prefijo numerico del nombre tampoco coincide siempre
-  con el id (id 513 = `308 - SAN MARTIN II`). Solapamiento de ids entre
-  archivos: 2016 y 2019 comparten 93, 2016 y 2024 solo 67, y 2019 y 2024 281.
-  Se conserva el modelo de la SPEC (una fila por `id_estacion`, con el nombre
-  del anio mas reciente) porque ese id es la clave que trae la fuente:
-  fusionar estaciones fisicas exigiria cruzar por nombre o coordenadas y
-  cambiaria el grain de `fact_viajes`, algo que el enunciado no pide.
+  estacion puede aparecer con dos ids; se conserva el modelo del enunciado
+  (una fila por `id_estacion`, con el nombre del año más reciente) porque
+  ese id es la clave que trae la fuente: fusionar estaciones físicas
+  exigiría cruzar por nombre o coordenadas y cambiaría el grain de
+  `fact_viajes`, algo que el enunciado no pide. Medición (ids cruzados entre
+  años y ejemplos): **Anexo A.3**.
+
+---
+
+## Anexo: mediciones de las decisiones 8 y 33 y de la limitación de id_estacion
+
+### A.1. Duración 2016: la columna de la fuente no coincide con las fechas
+
+Medido sobre los **503.252 viajes de 2016** con destino informado (bronze):
+
+- correlación entre `duracion_recorrido` y `fin - inicio`: **0,0024**
+  (Spearman 0,0037); solo el **0,35 %** de los viajes coincide dentro de
+  ±5 s y el **8,64 %** dentro de ±10 %;
+- las diferencias van de **-10.149 a +10.171 s** (mediana +195 s, desvio
+  2.228 s): no es un error de unidad, porque eso daria un **factor fijo**
+  (el ratio `fin - inicio` / fuente recorre de 0,06 a 17,6);
+- control en los otros anios: en **2019 y 2024 la columna coincide
+  exactamente** con `fin - inicio` (correlación 1,0000; 100 % dentro de
+  ±5 s), o sea que la regla del enunciado reproduce la propia columna de
+  la fuente en esos años;
+- las dos columnas estan acotadas al mismo rango (p0 = 10,00 min y
+  p100 = 180 min en ambas): los valores parecen duraciones reales de la
+  misma poblacion, pero **no estan emparejados con las fechas de su fila**.
+
+Efecto medido: los conteos NO cambian con ninguna de las dos lecturas
+(2016 sigue con 93.555 filas en cuarentena, todas `FECHA_INVALIDA`, y
+503.252 validas; ningun viaje supera las 24 h ni termina antes de
+empezar), pero si cambian los promedios del reporte 3: la fila
+`DESCONOCIDO,DESCONOCIDO` pasa de 28,3 a 28,6 min, porque **una parte**
+de sus viajes es de 2016: 503.252 de 6.650.991 (7,6 %), todos sin
+usuario. La duracion promedio de 2016 sube 3,23 min al calcularla desde
+las fechas (35,88 -> 39,11 min), y ese 7,6 % mueve el promedio de la fila
+0,076 x 3,23 = 0,24 min, que redondeado a un decimal da el 28,3 -> 28,6
+observado. Usar la columna de la fuente
+dejaria la duracion de 2016 inconsistente con las fechas que aplican las
+reglas de calidad, y lo dejaria ademas en contra de 2019/2024, donde la
+columna es igual a `fin - inicio`.
+
+### A.2. Etiquetas de error: verificación y efectos
+
+Verificado con `value_counts` sobre los nombres de bronze (origen +
+destino):
+
+- **2016 y 2024 tienen 0 ocurrencias** de `ERRONEA` y `KP1808000368`;
+- **2019 solo las trae en los ids 1 y 10**: `ERRONEA` 2.451 (id
+  `1BAEcobici`) y `KP1808000368` 19.885 (id `10BAEcobici`), 22.336 en
+  total, sin ningún otro nombre con forma de marca de error (búsqueda
+  `ERRON` / `KP` + dígitos).
+
+Efectos: el id 1 queda como `FACULTAD DE DERECHO` (12.600 viajes en 2016,
+dirección *Av. Figueroa Alcorta y Juan A. Bibiloni*) y el id 10 como
+`PUERTO MADERO - UCA` (12.377 viajes, *Moreau de Justo 1500*); no cambia
+ninguna otra estación, `ultimo_anio` sigue en 2019 (la estación aparece ese
+año aunque su etiqueta quede en nulo) y no se pierden filas en cuarentena.
+Si un id solo trajera etiquetas de error quedaría sin nombre (el reporte 2 lo
+mostraría como `SIN NOMBRE`); en los datos reales no ocurre, porque los dos
+ids además tienen nombre real en 2016.
+
+### A.3. `id_estacion` no estable entre años: medición
+
+- la Facultad de Derecho es el **id 1** en 2016 (12.600 viajes) y el
+  **id 202** en 2024 (30.922); los ids 1 y 10 no existen en 2024;
+- el prefijo numérico del nombre tampoco coincide siempre con el id (id 513
+  = `308 - SAN MARTIN II`);
+- solapamiento de ids entre archivos: 2016 y 2019 comparten 93, 2016 y 2024
+  solo 67, y 2019 y 2024 281.

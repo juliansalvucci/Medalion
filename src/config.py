@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Rutas fijas del proyecto (estructura obligatoria de la SPEC)
+# Rutas fijas del proyecto (estructura de carpetas indicada en el enunciado)
 # ---------------------------------------------------------------------------
 BASE = Path(__file__).resolve().parent.parent
 

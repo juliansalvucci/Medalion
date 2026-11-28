@@ -82,7 +82,19 @@ python main.py --desde reportes   # solo los CSV
 
 Es **idempotente**: cada salida se escribe en una ruta fija y reemplaza la
 anterior (nunca hace append). Correr dos veces deja los mismos conteos y los
-mismos CSV **byte a byte**.
+mismos CSV **byte a byte**. Los Parquet de bronze difieren entre corridas
+**solo** en `_fecha_ingesta` (la marca de tiempo de la corrida); silver, gold
+y los reportes quedan idénticos.
+
+Para comprobarlo, guarde los hashes de los 5 CSV, corra el pipeline otra vez
+y vuelva a comparar:
+
+```bash
+sha256sum data/gold/reportes/*.csv > antes.sha256
+python main.py
+sha256sum -c antes.sha256
+# en Windows: Get-FileHash data/gold/reportes/*.csv  (mismos hashes)
+```
 
 La Fase 1 (exploracion) es un script auxiliar que no forma parte del
 pipeline. Se ejecuta desde la raiz del repo con `python -m src.exploracion`
@@ -154,13 +166,15 @@ iniciar) y Python 3.11:
 
 | Etapa | Tiempo (corrida de referencia) | Salida aprox. |
 |---|---|---|
-| bronze | ~73 s | 416 MB (6 Parquet) |
-| silver | ~119 s | 324 MB (4 Parquet) |
-| gold | ~155 s | 139 MB (4 Parquet) |
-| reportes | ~8 s | 5 CSV |
-| **Total** | **~356 s (6 min)** | |
+| bronze | ~131 s | 416 MB (6 Parquet) |
+| silver | ~146 s | 324 MB (4 Parquet) |
+| gold | ~183 s | 139 MB (4 Parquet) |
+| reportes | ~13 s | 5 CSV |
+| **Total** | **~474 s (8 min)** | |
 
-(Entre corridas osciló entre 356 y 392 s según el uso de la maquina.)
+(Bronze pasa de ~73 s a ~131 s porque ahora **relee cada archivo de origen**
+para verificar contra él filas, columnas y tipos; sin esa verificación las
+corridas quedaban entre 356 y 445 s según el uso de la maquina.)
 
 - **Volumen**: 10.373.095 viajes y 320.158 usuarios en bruto; silver deja
   10.266.320 viajes y 314.927 usuarios validos.
@@ -186,7 +200,7 @@ El pipeline falla con mensaje explicito si algo no cierra:
 - **Silver**: `validar_esquema()` antes de cada guardado (dtypes y orden
   exactos, `Int64` nullable); conciliacion por ano
   `filas_bronze == filas_silver + filas_cuarentena`; `id_viaje` unico;
-  motivos de cuarentena en el orden de prioridad de la SPEC.
+  motivos de cuarentena en el orden de prioridad del enunciado.
 - **Gold**: `filas_fact_viajes == filas_silver_viajes`; todo `fecha_key`
   existe en `dim_fecha`; todo id de estacion existe en `dim_estacion`;
   viajes con `id_usuario` fuera de `dim_usuario` se cuentan y documentan
